@@ -3,20 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>麻將大師計分器</title>
+    <title>麻將大師計分器 (雲端同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        body { background-color: #f1f5f9; font-family: 'Noto Sans TC', sans-serif; padding-bottom: 40px; }
+        body { background-color: #f1f5f9; font-family: 'Noto Sans TC', sans-serif; padding-bottom: 40px; touch-action: manipulation; }
         .tab-active { color: #059669; border-bottom: 4px solid #059669; }
         .calendar-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 0.875rem; cursor: pointer; position: relative; transition: all 0.2s; }
-        .day-win { background-color: #22c55e !important; color: white; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.4); }
-        .day-loss { background-color: #ef4444 !important; color: white; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4); }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); }
-        .scroll-hide::-webkit-scrollbar { display: none; }
+        .day-win { background-color: #22c55e !important; color: white; }
+        .day-loss { background-color: #ef4444 !important; color: white; }
+        #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .bet-active { background-color: #059669 !important; color: white !important; }
-        #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s; }
-        .error-msg { background: #fee2e2; border: 1px solid #f87171; color: #991b1b; padding: 1rem; border-radius: 1rem; margin-top: 1rem; font-size: 0.875rem; }
     </style>
 </head>
 <body>
@@ -24,12 +21,6 @@
     <div id="loading-overlay">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
         <p class="font-bold text-slate-500">雲端資料同步中...</p>
-        <div id="auth-error-hint" class="hidden max-w-xs text-center px-4">
-            <div class="error-msg">
-                偵測到 Firebase 設定錯誤。<br>
-                請確保已在 Firebase 控制台啟用「匿名登入 (Anonymous)」。
-            </div>
-        </div>
     </div>
 
     <div class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-slate-50 relative overflow-hidden">
@@ -40,40 +31,22 @@
             <button onclick="switchTab('members')" id="tab-members" class="flex-1 py-4 font-black text-center text-slate-400">成員</button>
         </nav>
 
-        <main class="p-4 flex-grow overflow-x-hidden">
+        <main class="p-4 flex-grow">
             <!-- 總覽頁面 -->
             <section id="page-dashboard" class="space-y-4">
-                <div class="glass-card rounded-3xl p-6 shadow-sm">
+                <div class="bg-white rounded-3xl p-6 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-black text-slate-800">數據統計</h3>
-                        <select id="dashYearSelect" onchange="renderDashboard()" class="bg-slate-100 border-none rounded-lg px-2 py-1 text-sm font-bold">
-                            <option value="2025">2025</option>
-                            <option value="2026">2026</option>
-                        </select>
+                        <h3 class="font-black">數據統計</h3>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div id="netProfitBox" class="col-span-2 rounded-2xl p-5 text-center text-white transition-colors bg-emerald-600 shadow-lg">
-                            <p class="text-[10px] opacity-70 font-bold uppercase tracking-wider">淨勝負</p>
+                    <div class="grid grid-cols-1 gap-3">
+                        <div id="netProfitBox" class="rounded-2xl p-5 text-center text-white bg-emerald-600 shadow-lg">
+                            <p class="text-[10px] opacity-70 font-bold tracking-wider">總淨勝負</p>
                             <h2 id="dashNet" class="text-4xl font-black mt-1">$ 0</h2>
-                        </div>
-                        <div class="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 text-center">
-                            <p class="text-[10px] text-emerald-600 font-bold">單場最高贏</p>
-                            <p id="dashWin" class="text-xl font-black text-emerald-700">$ 0</p>
-                        </div>
-                        <div class="bg-red-50 rounded-2xl p-3 border border-red-100 text-center">
-                            <p class="text-[10px] text-red-600 font-bold">單場最高輸</p>
-                            <p id="dashLoss" class="text-xl font-black text-red-700">$ 0</p>
                         </div>
                     </div>
                 </div>
                 <div class="bg-white rounded-3xl p-6 shadow-sm">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 id="calTitle" class="font-black text-slate-800">2025年 1月</h3>
-                        <div class="flex gap-2">
-                            <button onclick="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full">◀</button>
-                            <button onclick="changeMonth(1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full">▶</button>
-                        </div>
-                    </div>
+                    <h3 id="calTitle" class="font-black mb-4 text-center">2025年</h3>
                     <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
                 </div>
             </section>
@@ -82,31 +55,25 @@
             <section id="page-tracker" class="hidden">
                 <div id="setupView" class="space-y-4">
                     <div class="bg-white rounded-3xl p-6 shadow-sm space-y-6">
-                        <h2 class="text-2xl font-black text-slate-800">建立新牌局</h2>
-                        <input type="date" id="setupDate" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                        <p class="text-xs font-bold text-slate-400">請選取 3 位牌咖對手：</p>
-                        <div id="setupMemberList" class="flex gap-3 overflow-x-auto pb-2 scroll-hide min-h-[80px]"></div>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button onclick="setBet(30,10,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">30/10</button>
-                            <button onclick="setBet(50,20,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">50/20</button>
-                            <button onclick="setBet(100,20,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">100/20</button>
-                        </div>
+                        <h2 class="text-2xl font-black">建立新牌局</h2>
+                        <input type="date" id="setupDate" class="w-full p-4 bg-slate-50 rounded-2xl font-bold">
+                        <p class="text-xs font-bold text-slate-400">請選取 3 位對手：</p>
+                        <div id="setupMemberList" class="flex gap-3 overflow-x-auto pb-2 min-h-[80px]"></div>
                         <button onclick="startMatch()" class="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black shadow-xl">開始計分</button>
                     </div>
                 </div>
                 <div id="recordView" class="hidden space-y-4">
                     <div class="bg-slate-900 text-white rounded-[32px] p-8">
-                        <h2 id="liveNet" class="text-6xl font-black tracking-tighter">$ 0</h2>
-                        <p class="mt-2 opacity-50 font-bold">當前局勢累積總計</p>
+                        <h2 id="liveNet" class="text-6xl font-black">$ 0</h2>
+                        <p class="mt-2 opacity-50">當前累積勝負</p>
                     </div>
                     <div class="bg-white rounded-[32px] p-6 space-y-4">
                         <select id="recType" class="w-full p-4 bg-slate-100 rounded-2xl font-black">
                             <option value="胡牌">我胡牌 (+)</option>
                             <option value="放槍">我放槍 (-)</option>
                         </select>
-                        <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none">
-                        <p class="text-xs font-bold text-slate-400">選擇計算對象：</p>
-                        <div id="recTargetList" class="flex gap-2 overflow-x-auto py-2 scroll-hide"></div>
+                        <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black">
+                        <div id="recTargetList" class="flex gap-2 overflow-x-auto py-2"></div>
                         <button onclick="addLog()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">新增此紀錄</button>
                         <button onclick="settleMatch()" class="w-full bg-orange-500 text-white py-4 rounded-2xl font-black mt-2">牌局結束並存檔</button>
                     </div>
@@ -116,9 +83,9 @@
             <!-- 成員頁面 -->
             <section id="page-members" class="hidden space-y-6">
                 <div class="bg-white rounded-3xl p-6 shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800 mb-4">新增成員</h2>
+                    <h2 class="text-xl font-black mb-4">新增成員</h2>
                     <div class="flex gap-2">
-                        <input type="text" id="memName" placeholder="輸入名字" class="flex-1 p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none">
+                        <input type="text" id="memName" placeholder="輸入名字" class="flex-1 p-4 bg-slate-50 rounded-2xl font-bold outline-none">
                         <button onclick="addMember()" class="bg-emerald-600 text-white px-8 rounded-2xl font-black">新增</button>
                     </div>
                 </div>
@@ -127,61 +94,64 @@
         </main>
     </div>
 
-    <!-- Firebase 邏輯 -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- Firebase SDK 載入 (使用相容模式) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-        // Firebase 配置
+    <script>
+        // --- 核心變數 ---
+        let DB = { members: [], matches: [] };
+        let user = null;
+        let setupSelectedMembers = [];
+        let activeMatch = null;
+        let selectedRecMember = null;
+        const appId = "mahjong-app-v3";
+
+        // --- Firebase 初始化 ---
         const firebaseConfig = {
             apiKey: "AIzaSyAX-Lsh3RdVZWf6oV5TAH-OS4BD__h4DuQ",
             authDomain: "mahjong-scoring-calculat-3c0ca.firebaseapp.com",
             projectId: "mahjong-scoring-calculat-3c0ca",
             storageBucket: "mahjong-scoring-calculat-3c0ca.firebasestorage.app",
             messagingSenderId: "386600276534",
-            appId: "1:386600276534:web:2eefd6ee6eba7ae9927e97",
-            measurementId: "G-HNKLDG0P3L"
+            appId: "1:386600276534:web:2eefd6ee6eba7ae9927e97"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-        let DB = { members: [], matches: [] };
-        let user = null;
-        const appId = "mahjong-app-v3";
-        let viewDate = new Date();
-        let setupSelectedMembers = [];
-        let activeMatch = null;
-        let selectedRecMember = null;
-
-        // --- 強制將函數掛載到 window，解決按鈕無反應問題 ---
-        window.switchTab = (tab) => {
+        // --- 核心功能 (掛載到全域) ---
+        window.switchTab = function(tab) {
             document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
-            document.getElementById(`page-${tab}`).classList.remove('hidden');
+            document.getElementById('page-' + tab).classList.remove('hidden');
             document.querySelectorAll('nav button').forEach(b => b.classList.replace('tab-active', 'text-slate-400'));
-            document.getElementById(`tab-${tab}`).classList.add('tab-active');
+            document.getElementById('tab-' + tab).classList.add('tab-active');
             renderUI();
         };
 
-        window.addMember = async () => {
+        window.addMember = function() {
             const name = document.getElementById('memName').value.trim();
             if (!name) return;
-            DB.members.push({ id: 'mem_'+Date.now(), name, emoji: '🀄', records: [] });
-            await saveCloud();
+            DB.members.push({ id: 'mem_' + Date.now(), name: name, emoji: '🀄', records: [] });
+            saveCloud();
             document.getElementById('memName').value = '';
+            renderUI();
         };
 
-        window.setBet = (base, rate, btn) => {
-            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('bet-active'));
-            btn.classList.add('bet-active');
+        window.toggleSetup = function(id) {
+            if (setupSelectedMembers.includes(id)) {
+                setupSelectedMembers = setupSelectedMembers.filter(x => x !== id);
+            } else if (setupSelectedMembers.length < 3) {
+                setupSelectedMembers.push(id);
+            }
+            renderSetupMembers();
         };
 
-        window.startMatch = () => {
-            if (setupSelectedMembers.length !== 3) return alert('請先點選下方頭像，選擇三位對手！');
+        window.startMatch = function() {
+            if (setupSelectedMembers.length !== 3) return alert('請選擇 3 位對手！');
             activeMatch = {
-                id: 'm_'+Date.now(),
                 date: document.getElementById('setupDate').value,
                 overallTotal: 0,
                 memberScores: {},
@@ -193,12 +163,17 @@
             updateRecordUI();
         };
 
-        window.addLog = () => {
+        window.setRecMember = function(id) {
+            selectedRecMember = id;
+            updateRecordUI();
+        };
+
+        window.addLog = function() {
             const val = parseInt(document.getElementById('recVal').value) || 0;
-            const type = document.getElementById('recType').value;
             if (!selectedRecMember) return alert('請先點擊選取下方其中一位成員！');
-            
+            const type = document.getElementById('recType').value;
             const m = activeMatch.members.find(x => x.id === selectedRecMember);
+            
             if (type === '胡牌') {
                 activeMatch.overallTotal += val;
                 activeMatch.memberScores[m.name] -= val;
@@ -210,104 +185,47 @@
             updateRecordUI();
         };
 
-        window.settleMatch = async () => {
-            DB.matches.unshift({ 
-                date: activeMatch.date, 
-                total: activeMatch.overallTotal, 
-                memberScores: activeMatch.memberScores 
-            });
+        window.settleMatch = function() {
+            DB.matches.unshift({ date: activeMatch.date, total: activeMatch.overallTotal });
             activeMatch.members.forEach(mem => {
                 const dbMem = DB.members.find(x => x.id === mem.id);
                 if (dbMem) dbMem.records.unshift({ date: activeMatch.date, score: activeMatch.memberScores[mem.name] });
             });
             activeMatch = null;
-            setupSelectedMembers = [];
-            await saveCloud();
+            saveCloud();
+            window.switchTab('dashboard');
             document.getElementById('recordView').classList.add('hidden');
             document.getElementById('setupView').classList.remove('hidden');
-            window.switchTab('dashboard');
         };
 
-        window.changeMonth = (s) => { 
-            viewDate.setMonth(viewDate.getMonth() + s); 
-            renderDashboard(); 
-        };
-
-        window.toggleSetup = (id) => {
-            if (setupSelectedMembers.includes(id)) setupSelectedMembers = setupSelectedMembers.filter(x => x !== id);
-            else if (setupSelectedMembers.length < 3) setupSelectedMembers.push(id);
-            renderSetupMembers();
-        };
-
-        window.setRecMember = (id) => {
-            selectedRecMember = id;
-            updateRecordUI();
-        };
-
-        window.renderDashboard = () => {
-            const net = DB.matches.reduce((acc, m) => acc + m.total, 0);
-            document.getElementById('dashNet').innerText = `$ ${net}`;
-            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white shadow-lg transition-colors ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
-            
-            const maxWin = DB.matches.length ? Math.max(...DB.matches.map(m => m.total)) : 0;
-            const maxLoss = DB.matches.length ? Math.min(...DB.matches.map(m => m.total)) : 0;
-            document.getElementById('dashWin').innerText = `$ ${maxWin > 0 ? maxWin : 0}`;
-            document.getElementById('dashLoss').innerText = `$ ${maxLoss < 0 ? Math.abs(maxLoss) : 0}`;
-
-            const grid = document.getElementById('calendarGrid');
-            grid.innerHTML = '';
-            document.getElementById('calTitle').innerText = `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`;
-            
-            const lastDay = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
-            for (let d = 1; d <= lastDay; d++) {
-                const dayStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const match = DB.matches.find(m => m.date === dayStr);
-                const dayEl = document.createElement('div');
-                dayEl.className = `calendar-day ${match ? (match.total >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'} font-bold`;
-                dayEl.innerText = d;
-                grid.appendChild(dayEl);
-            }
-        };
-
-        // --- Firebase 操作 ---
-        async function saveCloud() {
-            if (!user) return;
-            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), DB);
-        }
-
+        // --- UI 渲染 ---
         function renderUI() {
             renderMemberList();
-            window.renderDashboard();
+            renderDashboard();
             renderSetupMembers();
             if (!document.getElementById('setupDate').value) {
                 document.getElementById('setupDate').valueAsDate = new Date();
             }
         }
 
+        function renderDashboard() {
+            const net = DB.matches.reduce((acc, m) => acc + m.total, 0);
+            document.getElementById('dashNet').innerText = '$ ' + net;
+            document.getElementById('netProfitBox').style.backgroundColor = net >= 0 ? '#059669' : '#ef4444';
+        }
+
         function renderMemberList() {
             const display = document.getElementById('memberListDisplay');
             if (!DB.members.length) {
-                display.innerHTML = '<p class="text-center text-slate-400 py-10 font-bold">請到「成員」頁面新增牌咖</p>';
+                display.innerHTML = '<p class="text-center text-slate-400 py-10 font-bold">目前沒有成員</p>';
                 return;
             }
-            const sorted = [...DB.members].sort((a,b) => {
-                const sA = a.records.reduce((acc, r) => acc + r.score, 0);
-                const sB = b.records.reduce((acc, r) => acc + r.score, 0);
-                return sA - sB;
-            });
-
-            display.innerHTML = sorted.map((m, i) => {
+            display.innerHTML = DB.members.map(m => {
                 const total = m.records.reduce((acc, r) => acc + r.score, 0);
-                let color = "bg-white";
-                if (i === 0 && total < 0) color = "bg-emerald-500 text-white shadow-emerald-200";
-                if (i === sorted.length - 1 && total > 0) color = "bg-red-500 text-white shadow-red-200";
                 return `
-                    <div class="p-5 rounded-[28px] flex justify-between items-center ${color} shadow-sm border border-slate-100">
-                        <span class="font-black">${m.emoji} ${m.name}</span>
-                        <div class="text-right">
-                            <span class="text-[10px] block opacity-50">累計收益</span>
-                            <span class="font-black text-xl">${total >= 0 ? '+' : ''}${total}</span>
-                        </div>
+                    <div class="p-5 rounded-[28px] flex justify-between items-center bg-white shadow-sm border border-slate-100">
+                        <span class="font-black">🀄 ${m.name}</span>
+                        <span class="font-black text-xl ${total >= 0 ? 'text-emerald-600' : 'text-red-600'}">${total >= 0 ? '+' : ''}${total}</span>
                     </div>
                 `;
             }).join('');
@@ -315,47 +233,41 @@
 
         function renderSetupMembers() {
             const list = document.getElementById('setupMemberList');
+            if (!list) return;
             list.innerHTML = DB.members.map(m => `
-                <div onclick="window.toggleSetup('${m.id}')" class="flex-shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-transparent bg-slate-100 text-slate-400'}">
-                    <span class="text-2xl mb-1">${m.emoji}</span>
-                    ${m.name}
+                <div onclick="toggleSetup('${m.id}')" class="flex-shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-transparent bg-slate-100 text-slate-400'}">
+                    <span class="text-2xl mb-1">👤</span>${m.name}
                 </div>
             `).join('');
         }
 
         function updateRecordUI() {
-            document.getElementById('liveNet').innerText = `$ ${activeMatch.overallTotal}`;
+            document.getElementById('liveNet').innerText = '$ ' + activeMatch.overallTotal;
             document.getElementById('recTargetList').innerHTML = activeMatch.members.map(m => `
-                <button onclick="window.setRecMember('${m.id}')" class="px-6 py-3 rounded-2xl text-sm font-black whitespace-nowrap transition-all ${selectedRecMember === m.id ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}">
+                <button onclick="setRecMember('${m.id}')" class="px-6 py-3 rounded-2xl text-sm font-black transition-all ${selectedRecMember === m.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}">
                     ${m.name}
                 </button>
             `).join('');
         }
 
-        // --- 啟動驗證與同步 ---
-        signInAnonymously(auth).catch((error) => {
-            console.error("Auth Error:", error.code);
-            if (error.code === 'auth/configuration-not-found') {
-                document.getElementById('auth-error-hint').classList.remove('hidden');
-            }
-        });
+        // --- 雲端同步 ---
+        function saveCloud() {
+            if (!user) return;
+            db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({ mahjongDB: DB });
+        }
 
-        onAuthStateChanged(auth, (u) => {
-            if (u) {
-                user = u;
-                onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), (snap) => {
-                    if (snap.exists()) {
-                        DB = snap.data();
-                    } else {
-                        saveCloud(); 
-                    }
-                    renderUI();
-                    document.getElementById('loading-overlay').style.opacity = '0';
-                    setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 500);
-                }, (err) => {
-                    console.error("Firestore Error:", err);
-                });
-            }
+        // --- 啟動程序 ---
+        auth.signInAnonymously().then(cred => {
+            user = cred.user;
+            db.collection('artifacts').doc(appId).collection('users').doc(user.uid).onSnapshot(doc => {
+                if (doc.exists && doc.data().mahjongDB) {
+                    DB = doc.data().mahjongDB;
+                }
+                renderUI();
+                document.getElementById('loading-overlay').style.display = 'none';
+            });
+        }).catch(err => {
+            alert('登入失敗，請檢查 Firebase 控制台是否已啟用匿名登入！');
         });
     </script>
 </body>
