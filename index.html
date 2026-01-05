@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>麻將大師計分器 (雲端同步版)</title>
+    <title>麻將大師計分器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -20,6 +20,7 @@
     </style>
 </head>
 <body>
+    <!-- 載入動畫 -->
     <div id="loading-overlay">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
         <p class="font-bold text-slate-500">雲端資料同步中...</p>
@@ -132,7 +133,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 更新後的 Firebase 配置
+        // Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyAX-Lsh3RdVZWf6oV5TAH-OS4BD__h4DuQ",
             authDomain: "mahjong-scoring-calculat-3c0ca.firebaseapp.com",
@@ -155,38 +156,7 @@
         let activeMatch = null;
         let selectedRecMember = null;
 
-        // 初始化
-        signInAnonymously(auth).catch((error) => {
-            console.error("Auth Error:", error.code);
-            if (error.code === 'auth/configuration-not-found') {
-                document.getElementById('auth-error-hint').classList.remove('hidden');
-            }
-        });
-
-        onAuthStateChanged(auth, (u) => {
-            if (u) {
-                user = u;
-                onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), (snap) => {
-                    if (snap.exists()) {
-                        DB = snap.data();
-                    } else {
-                        saveCloud(); // 初始化
-                    }
-                    renderUI();
-                    document.getElementById('loading-overlay').style.opacity = '0';
-                    setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 500);
-                }, (err) => {
-                    console.error("Firestore Error:", err);
-                });
-            }
-        });
-
-        async function saveCloud() {
-            if (!user) return;
-            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), DB);
-        }
-
-        // --- 控制函式 ---
+        // --- 強制將函數掛載到 window，解決按鈕無反應問題 ---
         window.switchTab = (tab) => {
             document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`page-${tab}`).classList.remove('hidden');
@@ -201,7 +171,6 @@
             DB.members.push({ id: 'mem_'+Date.now(), name, emoji: '🀄', records: [] });
             await saveCloud();
             document.getElementById('memName').value = '';
-            renderMemberList();
         };
 
         window.setBet = (base, rate, btn) => {
@@ -256,13 +225,59 @@
             await saveCloud();
             document.getElementById('recordView').classList.add('hidden');
             document.getElementById('setupView').classList.remove('hidden');
-            switchTab('dashboard');
+            window.switchTab('dashboard');
         };
 
-        // --- UI 渲染 ---
+        window.changeMonth = (s) => { 
+            viewDate.setMonth(viewDate.getMonth() + s); 
+            renderDashboard(); 
+        };
+
+        window.toggleSetup = (id) => {
+            if (setupSelectedMembers.includes(id)) setupSelectedMembers = setupSelectedMembers.filter(x => x !== id);
+            else if (setupSelectedMembers.length < 3) setupSelectedMembers.push(id);
+            renderSetupMembers();
+        };
+
+        window.setRecMember = (id) => {
+            selectedRecMember = id;
+            updateRecordUI();
+        };
+
+        window.renderDashboard = () => {
+            const net = DB.matches.reduce((acc, m) => acc + m.total, 0);
+            document.getElementById('dashNet').innerText = `$ ${net}`;
+            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white shadow-lg transition-colors ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
+            
+            const maxWin = DB.matches.length ? Math.max(...DB.matches.map(m => m.total)) : 0;
+            const maxLoss = DB.matches.length ? Math.min(...DB.matches.map(m => m.total)) : 0;
+            document.getElementById('dashWin').innerText = `$ ${maxWin > 0 ? maxWin : 0}`;
+            document.getElementById('dashLoss').innerText = `$ ${maxLoss < 0 ? Math.abs(maxLoss) : 0}`;
+
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            document.getElementById('calTitle').innerText = `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`;
+            
+            const lastDay = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+            for (let d = 1; d <= lastDay; d++) {
+                const dayStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const match = DB.matches.find(m => m.date === dayStr);
+                const dayEl = document.createElement('div');
+                dayEl.className = `calendar-day ${match ? (match.total >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'} font-bold`;
+                dayEl.innerText = d;
+                grid.appendChild(dayEl);
+            }
+        };
+
+        // --- Firebase 操作 ---
+        async function saveCloud() {
+            if (!user) return;
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), DB);
+        }
+
         function renderUI() {
             renderMemberList();
-            renderDashboard();
+            window.renderDashboard();
             renderSetupMembers();
             if (!document.getElementById('setupDate').value) {
                 document.getElementById('setupDate').valueAsDate = new Date();
@@ -298,46 +313,15 @@
             }).join('');
         }
 
-        window.renderDashboard = () => {
-            const net = DB.matches.reduce((acc, m) => acc + m.total, 0);
-            document.getElementById('dashNet').innerText = `$ ${net}`;
-            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white shadow-lg transition-colors ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
-            
-            const maxWin = DB.matches.length ? Math.max(...DB.matches.map(m => m.total)) : 0;
-            const maxLoss = DB.matches.length ? Math.min(...DB.matches.map(m => m.total)) : 0;
-            document.getElementById('dashWin').innerText = `$ ${maxWin > 0 ? maxWin : 0}`;
-            document.getElementById('dashLoss').innerText = `$ ${maxLoss < 0 ? Math.abs(maxLoss) : 0}`;
-
-            const grid = document.getElementById('calendarGrid');
-            grid.innerHTML = '';
-            document.getElementById('calTitle').innerText = `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`;
-            
-            const lastDay = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
-            for (let d = 1; d <= lastDay; d++) {
-                const dayStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const match = DB.matches.find(m => m.date === dayStr);
-                const dayEl = document.createElement('div');
-                dayEl.className = `calendar-day ${match ? (match.total >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'} font-bold`;
-                dayEl.innerText = d;
-                grid.appendChild(dayEl);
-            }
-        }
-
         function renderSetupMembers() {
             const list = document.getElementById('setupMemberList');
             list.innerHTML = DB.members.map(m => `
-                <div onclick="toggleSetup('${m.id}')" class="flex-shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-transparent bg-slate-100 text-slate-400'}">
+                <div onclick="window.toggleSetup('${m.id}')" class="flex-shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-transparent bg-slate-100 text-slate-400'}">
                     <span class="text-2xl mb-1">${m.emoji}</span>
                     ${m.name}
                 </div>
             `).join('');
         }
-
-        window.toggleSetup = (id) => {
-            if (setupSelectedMembers.includes(id)) setupSelectedMembers = setupSelectedMembers.filter(x => x !== id);
-            else if (setupSelectedMembers.length < 3) setupSelectedMembers.push(id);
-            renderSetupMembers();
-        };
 
         function updateRecordUI() {
             document.getElementById('liveNet').innerText = `$ ${activeMatch.overallTotal}`;
@@ -348,15 +332,31 @@
             `).join('');
         }
 
-        window.setRecMember = (id) => {
-            selectedRecMember = id;
-            updateRecordUI();
-        };
+        // --- 啟動驗證與同步 ---
+        signInAnonymously(auth).catch((error) => {
+            console.error("Auth Error:", error.code);
+            if (error.code === 'auth/configuration-not-found') {
+                document.getElementById('auth-error-hint').classList.remove('hidden');
+            }
+        });
 
-        window.changeMonth = (s) => { 
-            viewDate.setMonth(viewDate.getMonth() + s); 
-            renderDashboard(); 
-        };
+        onAuthStateChanged(auth, (u) => {
+            if (u) {
+                user = u;
+                onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), (snap) => {
+                    if (snap.exists()) {
+                        DB = snap.data();
+                    } else {
+                        saveCloud(); 
+                    }
+                    renderUI();
+                    document.getElementById('loading-overlay').style.opacity = '0';
+                    setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 500);
+                }, (err) => {
+                    console.error("Firestore Error:", err);
+                });
+            }
+        });
     </script>
 </body>
 </html>
