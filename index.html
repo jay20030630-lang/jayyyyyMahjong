@@ -22,7 +22,7 @@
         .scroll-hide::-webkit-scrollbar { display: none; }
         .bet-active { background-color: #059669 !important; color: white !important; }
         #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .emoji-btn { font-size: 1.5rem; padding: 0.5rem; border-radius: 0.5rem; transition: background 0.2s; }
+        .emoji-btn { font-size: 1.5rem; padding: 0.5rem; border-radius: 0.5rem; transition: background 0.2s; border: 2px solid transparent; }
         .emoji-btn.selected { background-color: #ecfdf5; border: 2px solid #10b981; }
     </style>
 </head>
@@ -170,22 +170,26 @@
             </section>
 
             <!-- 成員頁面 -->
-            <section id="page-members" class="page-content hidden space-y-6">
-                <div class="bg-white rounded-3xl p-6 shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800 mb-4">建立成員</h2>
-                    <div id="emojiGrid" class="grid grid-cols-5 gap-2 mb-4 overflow-y-auto max-h-40 p-2 bg-slate-50 rounded-xl"></div>
-                    <div class="flex gap-3">
-                        <input type="text" id="memName" placeholder="成員名字" class="flex-1 p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none">
-                        <button onclick="addMember()" class="bg-emerald-600 text-white px-6 rounded-2xl font-black">新增</button>
+            <section id="page-members" class="page-content hidden space-y-4">
+                <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                    <h2 class="text-lg font-black text-slate-800 mb-3">建立成員</h2>
+                    <!-- 限制高度並允許滾動，確保下方內容不被推走 -->
+                    <div class="bg-slate-50 rounded-2xl p-2 mb-3">
+                        <p class="text-[9px] font-bold text-slate-400 mb-1 ml-1">選擇代表圖示</p>
+                        <div id="emojiGrid" class="grid grid-cols-5 gap-1 overflow-y-auto max-h-[120px] pr-1"></div>
+                    </div>
+                    <div class="flex flex-col gap-3">
+                        <input type="text" id="memName" placeholder="輸入成員名字" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20">
+                        <button onclick="addMember()" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all">新增成員</button>
                     </div>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-3">
                     <div class="flex justify-between items-center px-2">
                         <h3 class="font-black text-slate-800">成員列表</h3>
                         <select id="memYearSelect" onchange="renderMemberList()" class="bg-white border-none rounded-lg px-2 py-1 text-xs font-bold shadow-sm"></select>
                     </div>
-                    <div id="memberListDisplay" class="space-y-3 pb-8"></div>
+                    <div id="memberListDisplay" class="space-y-3 pb-20"></div>
                 </div>
             </section>
         </main>
@@ -223,7 +227,7 @@
         let DB = { members: [], matches: [] };
         let user = null;
         let viewDate = new Date();
-        const animals = ['🐶','🐱','🐹','🦊','🐻','🐼','🐨','🦁','🐮','🐷','🐸','🐵','🐔','🦄','🐝','🦖','🐙','👽','👻','🐯'];
+        const animals = ['🐶','🐱','🐹','🦊','🐻','🐼','🐨','🦁','🐮','🐷','🐸','🐵','🐔','🦄','🐝','🦖','🐙','👽','👻','🐯','🐦','🐧','🐮','🦒','🦓'];
         let selectedEmoji = animals[0];
         let setupSelectedMembers = [];
         let activeMatch = null;
@@ -350,12 +354,14 @@
         // --- 計分功能 ---
         function initEmojiGrid() {
             const grid = document.getElementById('emojiGrid');
-            grid.innerHTML = animals.map(e => `<button onclick="selectEmoji('${e}', this)" class="emoji-btn ${e === selectedEmoji ? 'selected' : ''}">${e}</button>`).join('');
+            grid.innerHTML = animals.map(e => `
+                <button onclick="selectEmoji('${e}', this)" class="emoji-btn ${e === selectedEmoji ? 'selected' : ''}">${e}</button>
+            `).join('');
         }
 
         function selectEmoji(e, btn) {
             selectedEmoji = e;
-            document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+            document.querySelectorAll('#emojiGrid .emoji-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
         }
 
@@ -554,7 +560,6 @@
         }
 
         function nextRound() {
-            // 存入當前將的所有日誌與盈虧
             const roundTotal = activeMatch.currentLogs.reduce((acc, l) => acc + l.score, 0);
             activeMatch.rounds.push({
                 total: roundTotal,
@@ -663,7 +668,7 @@
         // --- 成員頁面功能 ---
         function addMember() {
             const name = document.getElementById('memName').value.trim();
-            if (!name) return;
+            if (!name) return alert('請輸入成員名稱');
             DB.members.push({
                 id: 'mem_' + Date.now(),
                 name: name,
@@ -674,6 +679,7 @@
             document.getElementById('memName').value = '';
             renderMemberList();
             renderSetupMembers();
+            alert('成員已新增');
         }
 
         function renderMemberList() {
@@ -688,14 +694,13 @@
                 return { ...m, currentScore: yearScore };
             });
 
-            // 負值為輸給我 (金主), 正值為贏我錢 (債主)
             let king = null, debtor = null;
             if (scoredMembers.length > 0) {
-                const sortedByWin = [...scoredMembers].sort((a,b) => a.currentScore - b.currentScore); // 由小到大
-                if (sortedByWin[0].currentScore < 0) king = sortedByWin[0]; // 負最多的
+                const sortedByWin = [...scoredMembers].sort((a,b) => a.currentScore - b.currentScore);
+                if (sortedByWin[0].currentScore < 0) king = sortedByWin[0];
                 
-                const sortedByLoss = [...scoredMembers].sort((a,b) => b.currentScore - a.currentScore); // 由大到小
-                if (sortedByLoss[0].currentScore > 0) debtor = sortedByLoss[0]; // 正最多的
+                const sortedByLoss = [...scoredMembers].sort((a,b) => b.currentScore - a.currentScore);
+                if (sortedByLoss[0].currentScore > 0) debtor = sortedByLoss[0];
             }
 
             const normalMembers = scoredMembers.filter(m => 
@@ -758,7 +763,7 @@
             const m = DB.matches.find(x => x.id === matchId);
             const content = document.getElementById('modalContent');
             content.innerHTML = `
-                <div class="space-y-4">
+                <div class="space-y-4 text-slate-800">
                     <div class="flex justify-between items-start">
                         <button onclick="showDailyMatches('${m.date}')" class="text-slate-400 font-bold">◀ 返回列表</button>
                         <button onclick="confirmDeleteMatch('${m.id}')" class="text-red-400 font-bold">🗑️ 刪除場次</button>
@@ -768,7 +773,7 @@
                         <p class="text-xs text-slate-400 font-bold mt-1">${m.date} | 賭注 ${m.bets}</p>
                     </div>
                     <div class="space-y-3">
-                        <p class="text-xs font-black text-slate-400">分將詳情：</p>
+                        <p class="text-xs font-black text-slate-400">各將詳情：</p>
                         ${m.rounds.map((r, i) => `
                             <div class="bg-slate-50 p-3 rounded-xl flex justify-between text-sm">
                                 <span class="font-bold">第 ${i+1} 將</span>
@@ -810,7 +815,6 @@
             const match = DB.matches.find(m => m.id === id);
             if (!match) return;
 
-            // 扣回成員歷史
             Object.entries(match.memberScores).forEach(([mid, score]) => {
                 const mem = DB.members.find(x => x.id === mid);
                 if (mem && mem.records) {
@@ -844,7 +848,7 @@
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <button onclick="editMemberUI('${m.id}')" class="py-4 bg-slate-100 rounded-2xl font-bold">編輯</button>
-                        <button onclick="closeModal()" class="py-4 bg-slate-900 text-white rounded-2xl font-bold">關閉</button>
+                        <button onclick="closeModal()" class="py-4 bg-slate-900 text-white rounded-2xl font-black">關閉</button>
                     </div>
                 </div>
             `;
