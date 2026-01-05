@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>麻將大師計分器 (雲端同步版)</title>
+    <title>麻將大師計分器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -175,6 +175,8 @@
                     renderUI();
                     document.getElementById('loading-overlay').style.opacity = '0';
                     setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 500);
+                }, (err) => {
+                    console.error("Firestore Error:", err);
                 });
             }
         });
