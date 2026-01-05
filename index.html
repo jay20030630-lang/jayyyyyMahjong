@@ -3,70 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>麻將大師計分器 (即時同步版)</title>
+    <title>麻將大師計分器 Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body { 
-            background-color: #f1f5f9; 
+            background-color: #f8fafc; 
             font-family: 'Noto Sans TC', sans-serif; 
             padding-bottom: env(safe-area-inset-bottom);
             touch-action: manipulation; 
         }
         .tab-active { color: #059669; border-bottom: 4px solid #059669; }
-        .calendar-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 0.875rem; cursor: pointer; position: relative; transition: all 0.2s; }
-        .day-win { background-color: #22c55e !important; color: white; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.4); }
-        .day-loss { background-color: #ef4444 !important; color: white; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4); }
+        .calendar-day { aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; font-size: 0.875rem; cursor: pointer; position: relative; transition: all 0.2s; }
+        .day-win { background-color: #22c55e !important; color: white; }
+        .day-loss { background-color: #ef4444 !important; color: white; }
         .member-card { transition: all 0.2s; cursor: pointer; }
-        .member-card:active { transform: scale(0.98); }
         .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); }
         .scroll-hide::-webkit-scrollbar { display: none; }
         .bet-active { background-color: #059669 !important; color: white !important; }
         #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        
-        @media (max-width: 380px) {
-            .emoji-grid { grid-template-cols: repeat(8, minmax(0, 1fr)) !important; }
-        }
+        .emoji-btn { font-size: 1.5rem; padding: 0.5rem; border-radius: 0.5rem; transition: background 0.2s; }
+        .emoji-btn.selected { background-color: #ecfdf5; border: 2px solid #10b981; }
     </style>
 </head>
 <body>
-    <!-- Loading Overlay -->
+    <!-- 載入遮罩 -->
     <div id="loading-overlay">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
         <p class="font-bold text-slate-500">雲端同步中...</p>
     </div>
 
-    <div class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-slate-50 relative overflow-hidden">
-        <!-- Navigation Tabs -->
-        <nav class="sticky top-0 z-40 bg-white/95 backdrop-blur shadow-sm flex border-b">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex-1 py-4 font-black text-center text-slate-400">總覽</button>
+    <div class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-slate-50 relative">
+        <!-- 導覽列 -->
+        <nav class="sticky top-0 z-40 bg-white shadow-sm flex border-b">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex-1 py-4 font-black text-center text-slate-400 tab-active">總覽</button>
             <button onclick="switchTab('tracker')" id="tab-tracker" class="flex-1 py-4 font-black text-center text-slate-400">計分</button>
             <button onclick="switchTab('members')" id="tab-members" class="flex-1 py-4 font-black text-center text-slate-400">成員</button>
         </nav>
 
         <main class="p-4 flex-grow overflow-x-hidden">
-            <!-- Dashboard Page -->
-            <section id="page-dashboard" class="page-content hidden space-y-4">
+            <!-- 總覽頁面 -->
+            <section id="page-dashboard" class="page-content space-y-4">
                 <div class="glass-card rounded-3xl p-6 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-black text-slate-800 uppercase tracking-tighter">數據統計</h3>
-                        <select id="dashYearSelect" onchange="updateDashboard()" class="bg-slate-100 border-none rounded-lg px-2 py-1 text-sm font-bold"></select>
+                        <h3 class="font-black text-slate-800">累計盈虧</h3>
+                        <select id="dashYearSelect" onchange="updateDashboard()" class="bg-slate-100 rounded-lg px-2 py-1 text-sm font-bold"></select>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div id="netProfitBox" class="col-span-2 rounded-2xl p-5 text-center text-white transition-colors bg-emerald-600">
-                            <p class="text-[10px] opacity-70 font-bold uppercase tracking-wider">總淨勝負</p>
-                            <h2 id="dashNet" class="text-4xl font-black mt-1 tracking-tighter">$ 0</h2>
+                        <div id="netProfitBox" class="col-span-2 rounded-2xl p-5 text-center text-white bg-emerald-600">
+                            <p class="text-[10px] opacity-70 font-bold uppercase">淨勝負</p>
+                            <h2 id="dashNet" class="text-4xl font-black mt-1">$ 0</h2>
                         </div>
                         <div class="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 text-center">
-                            <p class="text-[10px] text-emerald-600 font-bold">總贏額</p>
-                            <p id="dashWin" class="text-xl font-black text-emerald-700 tracking-tighter">$ 0</p>
+                            <p class="text-[10px] text-emerald-600 font-bold">總贏</p>
+                            <p id="dashWin" class="text-xl font-black text-emerald-700">$ 0</p>
                         </div>
                         <div class="bg-red-50 rounded-2xl p-3 border border-red-100 text-center">
-                            <p class="text-[10px] text-red-600 font-bold">總輸額</p>
-                            <p id="dashLoss" class="text-xl font-black text-red-700 tracking-tighter">$ 0</p>
+                            <p class="text-[10px] text-red-600 font-bold">總輸</p>
+                            <p id="dashLoss" class="text-xl font-black text-red-700">$ 0</p>
                         </div>
                         <div class="bg-blue-50 rounded-2xl p-3 border border-blue-100 text-center">
-                            <p class="text-[10px] text-blue-600 font-bold">總場次</p>
+                            <p class="text-[10px] text-blue-600 font-bold">場次</p>
                             <p id="dashMatches" class="text-xl font-black text-blue-700">0</p>
                         </div>
                         <div class="bg-purple-50 rounded-2xl p-3 border border-purple-100 text-center">
@@ -88,11 +85,12 @@
                 </div>
             </section>
 
-            <!-- Tracker Page -->
+            <!-- 計分頁面 -->
             <section id="page-tracker" class="page-content hidden">
+                <!-- 建立牌局 -->
                 <div id="setupView" class="space-y-4">
                     <div class="bg-white rounded-3xl p-6 shadow-sm space-y-6">
-                        <h2 class="text-2xl font-black text-slate-800">建立新牌局</h2>
+                        <h2 class="text-2xl font-black text-slate-800">建立牌局</h2>
                         <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
@@ -105,7 +103,7 @@
                                 </div>
                             </div>
                             <div>
-                                <label class="text-[10px] font-black text-slate-400 mb-2 block">選擇牌咖 (選三位，不含自己)</label>
+                                <label class="text-[10px] font-black text-slate-400 mb-2 block">選擇牌咖 (選三位)</label>
                                 <div id="setupMemberList" class="flex gap-3 overflow-x-auto pb-2 scroll-hide min-h-[80px]"></div>
                             </div>
                             <div>
@@ -122,35 +120,44 @@
                                 </div>
                             </div>
                         </div>
-                        <button onclick="startMatch()" class="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black text-lg shadow-xl active:scale-95 transition-all">開始計分</button>
+                        <button onclick="startMatch()" class="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black text-lg shadow-xl active:scale-95 transition-all">開始牌局</button>
                     </div>
                 </div>
 
+                <!-- 計分進行中 -->
                 <div id="recordView" class="hidden space-y-4">
-                    <div class="bg-slate-900 text-white rounded-[32px] p-8 shadow-2xl relative overflow-hidden text-center">
-                        <p class="text-[10px] font-bold opacity-50 tracking-widest uppercase">目前總勝負</p>
-                        <h2 id="liveNet" class="text-6xl font-black mt-1 tracking-tighter">$ 0</h2>
+                    <div class="bg-slate-900 text-white rounded-[32px] p-8 shadow-2xl text-center">
+                        <p class="text-[10px] font-bold opacity-50 tracking-widest">目前勝負</p>
+                        <h2 id="liveNet" class="text-6xl font-black mt-1">$ 0</h2>
                         <div class="flex justify-between mt-4 opacity-70 text-[10px] font-bold">
                             <span id="liveRoundInfo">第 1 將</span>
-                            <span id="liveBetInfo">100 / 20</span>
+                            <span id="liveBetInfo">---</span>
                         </div>
                     </div>
                     <div class="bg-white rounded-[32px] p-6 shadow-sm space-y-4">
-                        <select id="recType" onchange="toggleRecTypeUI()" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none border-none">
-                            <option value="胡牌">胡牌 (+)</option>
-                            <option value="自摸">自摸 (+)</option>
-                            <option value="放槍">放槍 (-)</option>
-                            <option value="被自摸">被自摸 (-)</option>
+                        <select id="recType" onchange="toggleRecTypeUI()" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none">
+                            <option value="胡牌">胡牌</option>
+                            <option value="自摸">自摸</option>
+                            <option value="放槍">放槍</option>
+                            <option value="被自摸">被自摸</option>
                         </select>
-                        <div id="selfDrawInputArea" class="hidden space-y-2">
-                            <div id="selfDrawFields" class="space-y-2"></div>
+                        
+                        <div id="selfDrawInputArea" class="hidden space-y-3">
+                            <div class="flex justify-between items-center px-1">
+                                <label class="text-[10px] font-black text-slate-400">給付金額</label>
+                                <button onclick="syncSelfDrawValues()" class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-black">同上欄位</button>
+                            </div>
+                            <div id="selfDrawFields" class="space-y-3"></div>
                         </div>
-                        <div id="normalInputArea">
-                            <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none border-none">
-                            <div id="recTargetList" class="flex gap-2 overflow-x-auto mt-3 py-2 scroll-hide"></div>
+
+                        <div id="normalInputArea" class="space-y-3">
+                            <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none">
+                            <div id="recTargetList" class="flex gap-2 overflow-x-auto py-2 scroll-hide"></div>
                         </div>
-                        <button onclick="addLog()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg">記錄結果</button>
+
+                        <button onclick="addLog()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg">記錄</button>
                     </div>
+
                     <div class="bg-white rounded-[32px] p-6 shadow-sm">
                         <h3 class="font-black text-slate-800 mb-4">本將明細</h3>
                         <div id="logList" class="space-y-2 max-h-64 overflow-y-auto pr-2"></div>
@@ -162,21 +169,20 @@
                 </div>
             </section>
 
-            <!-- Members Page -->
+            <!-- 成員頁面 -->
             <section id="page-members" class="page-content hidden space-y-6">
                 <div class="bg-white rounded-3xl p-6 shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800 mb-4">新增成員</h2>
-                    <div id="emojiSelect" class="grid grid-cols-10 gap-2 mb-4 emoji-grid"></div>
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <input type="text" id="memName" placeholder="輸入名字" class="flex-1 p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none focus:ring-2 focus:ring-emerald-500">
-                        <button onclick="addMember()" class="bg-emerald-600 text-white py-4 px-8 rounded-2xl font-black shadow-md active:scale-95 transition-all">
-                            確認新增
-                        </button>
+                    <h2 class="text-xl font-black text-slate-800 mb-4">建立成員</h2>
+                    <div id="emojiGrid" class="grid grid-cols-5 gap-2 mb-4 overflow-y-auto max-h-40 p-2 bg-slate-50 rounded-xl"></div>
+                    <div class="flex gap-3">
+                        <input type="text" id="memName" placeholder="成員名字" class="flex-1 p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none">
+                        <button onclick="addMember()" class="bg-emerald-600 text-white px-6 rounded-2xl font-black">新增</button>
                     </div>
                 </div>
+
                 <div class="space-y-4">
                     <div class="flex justify-between items-center px-2">
-                        <h3 class="font-black text-slate-800 uppercase text-sm">成員數據庫</h3>
+                        <h3 class="font-black text-slate-800">成員列表</h3>
                         <select id="memYearSelect" onchange="renderMemberList()" class="bg-white border-none rounded-lg px-2 py-1 text-xs font-bold shadow-sm"></select>
                     </div>
                     <div id="memberListDisplay" class="space-y-3 pb-8"></div>
@@ -184,32 +190,22 @@
             </section>
         </main>
 
-        <!-- Modal -->
+        <!-- 彈窗模態框 -->
         <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal()"></div>
-            <div class="bg-white w-full max-w-sm rounded-[40px] shadow-2xl relative z-10 p-8 max-h-[85vh] overflow-y-auto scroll-hide">
+            <div class="bg-white w-full max-w-sm rounded-[40px] shadow-2xl relative z-10 p-8 max-h-[90vh] overflow-y-auto">
                 <div id="modalContent"></div>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script>
-        // --- Core Configuration & State ---
-        let DB = { members: [], matches: [] };
-        const animals = ['🐶','🐱','🐹','🦊','🐻','🐼','🐨','🦁','🐮','🐷','🐸','🐵','🐔','🦄','🐝','🦖','🐙','👽','👻','🐯'];
-        let viewDate = new Date();
-        let selectedEmoji = animals[0];
-        let setupSelectedMembers = [];
-        let activeMatch = null;
-        let selectedRecMember = null;
-        let user = null;
-        const appId = "mahjong-pro-v5";
-
+        // --- 初始化 Firebase ---
         const firebaseConfig = {
             apiKey: "AIzaSyAX-Lsh3RdVZWf6oV5TAH-OS4BD__h4DuQ",
             authDomain: "mahjong-scoring-calculat-3c0ca.firebaseapp.com",
@@ -218,325 +214,704 @@
             messagingSenderId: "386600276534",
             appId: "1:386600276534:web:2eefd6ee6eba7ae9927e97"
         };
-
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
+        const appId = "mahjong_stats_v1";
 
-        // --- Lifecycle & Initialization ---
-        window.onload = () => {
-            initEmojiList();
+        // --- 全域變數 ---
+        let DB = { members: [], matches: [] };
+        let user = null;
+        let viewDate = new Date();
+        const animals = ['🐶','🐱','🐹','🦊','🐻','🐼','🐨','🦁','🐮','🐷','🐸','🐵','🐔','🦄','🐝','🦖','🐙','👽','👻','🐯'];
+        let selectedEmoji = animals[0];
+        let setupSelectedMembers = [];
+        let activeMatch = null;
+        let selectedRecMember = null;
+        let selectedBet = { base: 0, rate: 0 };
+
+        // --- 核心邏輯 ---
+        window.onload = async () => {
+            initEmojiGrid();
             document.getElementById('setupDate').valueAsDate = new Date();
-            // Handle page recovery via URL Hash
-            handleRouting();
+            
+            auth.onAuthStateChanged(async (u) => {
+                if (u) {
+                    user = u;
+                    fetchData();
+                } else {
+                    await auth.signInAnonymously();
+                }
+            });
         };
 
-        function handleRouting() {
-            const hash = window.location.hash.replace('#', '');
-            const validTabs = ['dashboard', 'tracker', 'members'];
-            if (validTabs.includes(hash)) {
-                switchTab(hash);
-            } else {
-                switchTab('dashboard'); // Default
-            }
-        }
-
-        // --- Cloud Sync Logic (Bi-directional) ---
-        function saveCloud() {
-            if (!user) return;
-            db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({ 
-                mahjongDB: DB,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.error("Cloud Save Failed:", err));
-        }
-
-        auth.signInAnonymously().then(cred => {
-            user = cred.user;
-            // Listen for remote changes
+        async function fetchData() {
             db.collection('artifacts').doc(appId).collection('users').doc(user.uid).onSnapshot(doc => {
                 if (doc.exists && doc.data().mahjongDB) {
                     DB = doc.data().mahjongDB;
-                    refreshCurrentUI();
+                    refreshUI();
                 }
                 document.getElementById('loading-overlay').style.display = 'none';
             });
-        });
+        }
 
-        // --- UI Rendering Controllers ---
-        function refreshCurrentUI() {
-            const hash = window.location.hash.replace('#', '') || 'dashboard';
+        async function saveCloud() {
+            if (!user) return;
+            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({
+                mahjongDB: DB,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        function refreshUI() {
             initYearSelects();
-            if (hash === 'dashboard') updateDashboard();
-            if (hash === 'tracker') {
-                if (!activeMatch) renderSetupMembers();
-                else updateRecordUI();
-            }
-            if (hash === 'members') renderMemberList();
+            updateDashboard();
+            renderMemberList();
+            renderSetupMembers();
         }
 
-        window.switchTab = function(tab) {
-            // Update URL for persistence
-            window.location.hash = tab;
-            
-            document.querySelectorAll('.page-content').forEach(s => s.classList.add('hidden'));
+        function switchTab(tab) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
             document.getElementById(`page-${tab}`).classList.remove('hidden');
-            
             document.querySelectorAll('nav button').forEach(b => {
-                b.classList.remove('tab-active', 'text-slate-400');
+                b.classList.remove('tab-active');
                 if (b.id === `tab-${tab}`) b.classList.add('tab-active');
-                else b.classList.add('text-slate-400');
             });
+            refreshUI();
+        }
 
-            // Trigger specific page data render
-            refreshCurrentUI();
-        };
-
-        // --- Dashboard Functions ---
+        // --- 總覽功能 ---
         function initYearSelects() {
+            const currentYear = new Date().getFullYear();
             const years = ['all', ...new Set(DB.matches.map(m => m.date.split('-')[0]))];
-            const curY = new Date().getFullYear().toString();
-            if (!years.includes(curY)) years.push(curY);
+            if (!years.includes(currentYear.toString())) years.push(currentYear.toString());
             years.sort((a,b) => b === 'all' ? 1 : b - a);
-            
-            ['dashYearSelect', 'memYearSelect'].forEach(id => {
+
+            const selects = ['dashYearSelect', 'memYearSelect'];
+            selects.forEach(id => {
                 const el = document.getElementById(id);
-                if (el) {
-                    const prevVal = el.value;
-                    el.innerHTML = years.map(y => `<option value="${y}">${y === 'all' ? '全部年度' : y + ' 年'}</option>`).join('');
-                    if (Array.from(el.options).some(o => o.value === prevVal)) el.value = prevVal;
-                    else el.value = curY;
-                }
+                if (!el) return;
+                const val = el.value || currentYear.toString();
+                el.innerHTML = years.map(y => `<option value="${y}">${y === 'all' ? '全程累計' : y + ' 年'}</option>`).join('');
+                el.value = val;
             });
         }
 
-        window.updateDashboard = function() {
+        function updateDashboard() {
             const year = document.getElementById('dashYearSelect').value;
             const filtered = DB.matches.filter(m => year === 'all' || m.date.startsWith(year));
-            let win = 0, loss = 0, winCount = 0;
+            
+            let winTotal = 0, lossTotal = 0, winCount = 0;
             filtered.forEach(m => {
-                if (m.total > 0) { win += m.total; winCount++; }
-                else loss += Math.abs(m.total);
+                if (m.total > 0) { winTotal += m.total; winCount++; }
+                else if (m.total < 0) lossTotal += Math.abs(m.total);
             });
-            const net = win - loss;
+
+            const net = winTotal - lossTotal;
             document.getElementById('dashNet').innerText = `$ ${net.toLocaleString()}`;
-            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white transition-colors ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
-            document.getElementById('dashWin').innerText = `$ ${win.toLocaleString()}`;
-            document.getElementById('dashLoss').innerText = `$ ${loss.toLocaleString()}`;
+            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
+            document.getElementById('dashWin').innerText = `$ ${winTotal.toLocaleString()}`;
+            document.getElementById('dashLoss').innerText = `$ ${lossTotal.toLocaleString()}`;
             document.getElementById('dashMatches').innerText = filtered.length;
             document.getElementById('dashWinRate').innerText = filtered.length > 0 ? Math.round((winCount/filtered.length)*100)+'%' : '0%';
+            
             renderCalendar();
-        };
+        }
 
         function renderCalendar() {
             const grid = document.getElementById('calendarGrid');
             const y = viewDate.getFullYear(), m = viewDate.getMonth();
             document.getElementById('calTitle').innerText = `${y}年 ${m + 1}月`;
             grid.innerHTML = '';
+
             const firstDay = new Date(y, m, 1).getDay();
             const daysInMonth = new Date(y, m+1, 0).getDate();
+
             for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 const daysMatches = DB.matches.filter(m => m.date === dateStr);
-                const net = daysMatches.reduce((acc, m) => acc + m.total, 0);
+                const dailyNet = daysMatches.reduce((acc, m) => acc + m.total, 0);
+
                 const el = document.createElement('div');
-                el.className = `calendar-day font-black ${daysMatches.length > 0 ? (net >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'}`;
+                el.className = `calendar-day font-bold ${daysMatches.length > 0 ? (dailyNet >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'}`;
                 el.innerText = d;
-                el.onclick = () => showDailyDetail(dateStr);
+                el.onclick = () => showDailyMatches(dateStr);
                 grid.appendChild(el);
             }
         }
 
-        // --- Tracker Functions ---
-        window.renderSetupMembers = function() {
+        function changeMonth(dir) {
+            viewDate.setMonth(viewDate.getMonth() + dir);
+            renderCalendar();
+        }
+
+        // --- 計分功能 ---
+        function initEmojiGrid() {
+            const grid = document.getElementById('emojiGrid');
+            grid.innerHTML = animals.map(e => `<button onclick="selectEmoji('${e}', this)" class="emoji-btn ${e === selectedEmoji ? 'selected' : ''}">${e}</button>`).join('');
+        }
+
+        function selectEmoji(e, btn) {
+            selectedEmoji = e;
+            document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        function renderSetupMembers() {
             const list = document.getElementById('setupMemberList');
             if (DB.members.length === 0) {
-                list.innerHTML = `
-                    <div onclick="switchTab('members')" class="w-full p-6 bg-emerald-50 border-2 border-dashed border-emerald-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-all">
-                        <span class="text-3xl mb-2">👋</span>
-                        <p class="text-emerald-700 font-black text-sm">尚未新增任何成員</p>
-                        <p class="text-emerald-600/60 text-[10px] font-bold">點此跳轉至「成員」分頁建立</p>
-                    </div>`;
+                list.innerHTML = `<p class="text-slate-400 text-sm py-4">尚未新增任何成員</p>`;
                 return;
             }
             list.innerHTML = DB.members.map(m => `
-                <div onclick="toggleSetupMember('${m.id}')" class="flex-shrink-0 text-center cursor-pointer px-1">
-                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all border-2 ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 scale-105' : 'border-transparent bg-white shadow-sm'}">
-                        ${m.emoji || '👤'}
+                <div onclick="toggleSetupMember('${m.id}')" class="flex-shrink-0 text-center cursor-pointer">
+                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all border-2 ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50' : 'border-transparent bg-white shadow-sm'}">
+                        ${m.emoji}
                     </div>
-                    <p class="text-[10px] font-bold mt-2 ${setupSelectedMembers.includes(m.id) ? 'text-emerald-600' : 'text-slate-400'}">${m.name}</p>
+                    <p class="text-[10px] font-bold mt-1 ${setupSelectedMembers.includes(m.id) ? 'text-emerald-600' : 'text-slate-400'}">${m.name}</p>
                 </div>`).join('');
-        };
+        }
 
-        window.toggleSetupMember = function(id) {
-            if (setupSelectedMembers.includes(id)) setupSelectedMembers = setupSelectedMembers.filter(i => i !== id);
-            else if (setupSelectedMembers.length < 3) setupSelectedMembers.push(id);
-            renderSetupMembers();
-        };
-
-        window.startMatch = function() {
-            if (setupSelectedMembers.length !== 3) {
-                const content = document.getElementById('modalContent');
-                content.innerHTML = `<div class="text-center py-4"><span class="text-4xl">⚠️</span><h2 class="text-xl font-black mt-4">選擇牌咖</h2><p class="text-slate-500 font-bold mt-2">請選擇剛好 3 位對手。<br>(目前已選 ${setupSelectedMembers.length} 位)</p><button onclick="closeModal()" class="w-full mt-6 py-4 bg-slate-900 text-white rounded-2xl font-black">我知道了</button></div>`;
-                openModal(); return;
+        function toggleSetupMember(id) {
+            if (setupSelectedMembers.includes(id)) {
+                setupSelectedMembers = setupSelectedMembers.filter(i => i !== id);
+            } else if (setupSelectedMembers.length < 3) {
+                setupSelectedMembers.push(id);
             }
-            const base = document.getElementById('betBase').value;
-            const rate = document.getElementById('betRate').value;
-            if (!base || !rate) { alert('請設定賭注'); return; }
+            renderSetupMembers();
+        }
 
+        function setBet(b, r, btn) {
+            document.querySelectorAll('.bet-btn').forEach(el => el.classList.remove('bet-active'));
+            btn.classList.add('bet-active');
+            if (b === 'custom') {
+                document.getElementById('customBetArea').classList.remove('hidden');
+                selectedBet = { base: 0, rate: 0 };
+            } else {
+                document.getElementById('customBetArea').classList.add('hidden');
+                document.getElementById('betBase').value = b;
+                document.getElementById('betRate').value = r;
+                selectedBet = { base: b, rate: r };
+            }
+        }
+
+        function startMatch() {
+            if (setupSelectedMembers.length !== 3) return alert('請選擇 3 位牌咖');
+            const base = parseInt(document.getElementById('betBase').value);
+            const rate = parseInt(document.getElementById('betRate').value);
+            if (isNaN(base) || isNaN(rate)) return alert('請設定賭注');
+
+            const members = DB.members.filter(m => setupSelectedMembers.includes(m.id));
             activeMatch = {
-                id: 'match_' + Date.now(),
+                id: 'm_' + Date.now(),
                 date: document.getElementById('setupDate').value,
-                loc: document.getElementById('setupLoc').value || '居家',
+                loc: document.getElementById('setupLoc').value || '未填寫',
                 bets: `${base}/${rate}`,
-                members: DB.members.filter(m => setupSelectedMembers.includes(m.id)),
-                rounds: [], currentRoundLogs: [], currentRoundTotal: 0, overallTotal: 0,
+                opponents: members,
+                rounds: [],
+                currentLogs: [],
+                overallTotal: 0,
                 stats: { h:0, m:0, f:0, b:0 },
                 memberScores: {}
             };
-            activeMatch.members.forEach(m => activeMatch.memberScores[m.name] = 0);
+            members.forEach(m => activeMatch.memberScores[m.id] = 0);
+
             document.getElementById('setupView').classList.add('hidden');
             document.getElementById('recordView').classList.remove('hidden');
             document.getElementById('liveBetInfo').innerText = activeMatch.bets;
             updateRecordUI();
             toggleRecTypeUI();
-        };
+        }
 
-        window.addLog = function() {
+        function toggleRecTypeUI() {
             const type = document.getElementById('recType').value;
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const normal = document.getElementById('normalInputArea');
+            const selfDraw = document.getElementById('selfDrawInputArea');
+            
             if (type === '自摸') {
-                let roundWin = 0; let subScores = {};
-                document.querySelectorAll('.sd-input').forEach(input => {
-                    const val = parseInt(input.value) || 0;
-                    const m = activeMatch.members.find(x => x.id === input.dataset.mid);
-                    activeMatch.memberScores[m.name] -= val;
-                    subScores[m.name] = val;
-                    roundWin += val;
+                normal.classList.add('hidden');
+                selfDraw.classList.remove('hidden');
+                document.getElementById('selfDrawFields').innerHTML = activeMatch.opponents.map(m => `
+                    <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl">
+                        <span class="text-xl">${m.emoji}</span>
+                        <span class="flex-1 font-bold text-sm">${m.name}</span>
+                        <input type="number" class="sd-input w-24 p-2 rounded-lg border-0 bg-white font-black text-right outline-none focus:ring-1 focus:ring-emerald-500" data-mid="${m.id}" placeholder="金額">
+                    </div>
+                `).join('');
+            } else {
+                normal.classList.remove('hidden');
+                selfDraw.classList.add('hidden');
+                const targetList = document.getElementById('recTargetList');
+                targetList.innerHTML = activeMatch.opponents.map(m => `
+                    <button onclick="selectedRecMember='${m.id}'; updateTargetUI()" class="target-btn flex-shrink-0 px-4 py-2 rounded-xl bg-slate-50 font-bold border-2 ${selectedRecMember === m.id ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-transparent'}">
+                        ${m.emoji} ${m.name}
+                    </button>
+                `).join('');
+            }
+        }
+
+        function syncSelfDrawValues() {
+            const inputs = document.querySelectorAll('.sd-input');
+            if (inputs.length === 0) return;
+            const firstVal = inputs[0].value;
+            inputs.forEach(input => input.value = firstVal);
+        }
+
+        function updateTargetUI() {
+            const btns = document.querySelectorAll('.target-btn');
+            btns.forEach(b => b.className = b.className.replace('border-emerald-500 bg-emerald-50 text-emerald-600', 'border-transparent'));
+            toggleRecTypeUI();
+        }
+
+        function addLog() {
+            const type = document.getElementById('recType').value;
+            const logId = Date.now();
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            if (type === '自摸') {
+                let roundWin = 0;
+                let subData = [];
+                const inputs = document.querySelectorAll('.sd-input');
+                let allFilled = true;
+                inputs.forEach(input => {
+                    const val = parseInt(input.value);
+                    if (isNaN(val)) allFilled = false;
                 });
-                activeMatch.currentRoundTotal += roundWin;
+                if (!allFilled) return alert('請填寫所有人的給付金額');
+
+                inputs.forEach(input => {
+                    const val = parseInt(input.value) || 0;
+                    const mid = input.dataset.mid;
+                    activeMatch.memberScores[mid] -= val;
+                    roundWin += val;
+                    subData.push({ mid, val });
+                });
                 activeMatch.overallTotal += roundWin;
                 activeMatch.stats.m++;
-                activeMatch.currentRoundLogs.push({ id: Date.now(), time, type, target: '自摸三家', score: roundWin, subScores });
+                activeMatch.currentLogs.push({ id: logId, time, type, score: roundWin, subData });
             } else {
-                const val = parseInt(document.getElementById('recVal').value) || 0;
-                if (!selectedRecMember) return alert('請先選擇成員');
-                const m = activeMatch.members.find(x => x.id === selectedRecMember);
-                let score = 0;
-                if (type === '胡牌') { score = val; activeMatch.stats.h++; activeMatch.memberScores[m.name] -= val; }
-                if (type === '放槍') { score = -val; activeMatch.stats.f++; activeMatch.memberScores[m.name] += val; }
-                if (type === '被自摸') { score = -val; activeMatch.stats.b++; activeMatch.memberScores[m.name] += val; }
-                activeMatch.currentRoundTotal += score;
+                const val = parseInt(document.getElementById('recVal').value);
+                if (isNaN(val)) return alert('請輸入金額');
+                if (!selectedRecMember) return alert('請選擇成員');
+                const score = (type === '胡牌') ? val : -val;
+                
                 activeMatch.overallTotal += score;
-                activeMatch.currentRoundLogs.push({ id: Date.now(), time, type, target: m.name, score, targetId: m.id });
+                activeMatch.memberScores[selectedRecMember] -= score;
+                
+                if (type === '胡牌') activeMatch.stats.h++;
+                if (type === '放槍') activeMatch.stats.f++;
+                if (type === '被自摸') activeMatch.stats.b++;
+
+                activeMatch.currentLogs.push({ 
+                    id: logId, time, type, score, 
+                    target: activeMatch.opponents.find(o => o.id === selectedRecMember).name,
+                    targetId: selectedRecMember
+                });
             }
-            document.getElementById('recVal').value = '';
             updateRecordUI();
-        };
+            document.getElementById('recVal').value = '';
+        }
 
-        window.updateRecordUI = function() {
-            if (!activeMatch) return;
-            document.getElementById('liveNet').innerText = `$ ${activeMatch.overallTotal.toLocaleString()}`;
-            document.getElementById('liveNet').className = `text-6xl font-black mt-1 tracking-tighter ${activeMatch.overallTotal>=0?'text-emerald-400':'text-red-400'}`;
+        function updateRecordUI() {
+            const netEl = document.getElementById('liveNet');
+            netEl.innerText = `$ ${activeMatch.overallTotal.toLocaleString()}`;
+            netEl.className = `text-6xl font-black mt-1 ${activeMatch.overallTotal >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
             document.getElementById('liveRoundInfo').innerText = `第 ${activeMatch.rounds.length + 1} 將`;
-            document.getElementById('logList').innerHTML = activeMatch.currentRoundLogs.slice().reverse().map(l => `
-                <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl mb-2 text-sm border border-slate-100">
-                    <div><p class="text-[8px] font-black text-slate-400">${l.time}</p><p class="font-black">${l.target} (${l.type})</p></div>
-                    <div class="flex items-center gap-3">
-                        <span class="font-black ${l.score>=0?'text-emerald-500':'text-red-500'}">${l.score>=0?'+':''}${l.score}</span>
-                        <button onclick="deleteLog(${l.id})" class="text-red-300">❌</button>
+            
+            document.getElementById('logList').innerHTML = activeMatch.currentLogs.slice().reverse().map(l => `
+                <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl mb-1 text-sm">
+                    <div>
+                        <span class="text-[10px] text-slate-400 block">${l.time}</span>
+                        <span class="font-bold">${l.type} ${l.target || '三家'}</span>
                     </div>
-                </div>`).join('');
-        };
+                    <div class="flex items-center gap-3">
+                        <span class="font-black ${l.score >= 0 ? 'text-emerald-600' : 'text-red-600'}">${l.score > 0 ? '+' : ''}${l.score}</span>
+                        <button onclick="deleteLog(${l.id})" class="text-slate-300">✕</button>
+                    </div>
+                </div>
+            `).join('');
+        }
 
-        window.settleMatch = function() {
-            if (activeMatch.currentRoundLogs.length > 0 || activeMatch.rounds.length === 0) {
-                activeMatch.rounds.push({ total: activeMatch.currentRoundTotal, logs: [...activeMatch.currentRoundLogs] });
+        function deleteLog(id) {
+            const logIdx = activeMatch.currentLogs.findIndex(l => l.id === id);
+            if (logIdx === -1) return;
+            const log = activeMatch.currentLogs[logIdx];
+
+            activeMatch.overallTotal -= log.score;
+            if (log.type === '自摸') {
+                log.subData.forEach(s => activeMatch.memberScores[s.mid] += s.val);
+                activeMatch.stats.m--;
+            } else {
+                activeMatch.memberScores[log.targetId] += log.score;
+                if (log.type === '胡牌') activeMatch.stats.h--;
+                if (log.type === '放槍') activeMatch.stats.f--;
+                if (log.type === '被自摸') activeMatch.stats.b--;
             }
+            activeMatch.currentLogs.splice(logIdx, 1);
+            updateRecordUI();
+        }
+
+        function nextRound() {
+            // 存入當前將的所有日誌與盈虧
+            const roundTotal = activeMatch.currentLogs.reduce((acc, l) => acc + l.score, 0);
+            activeMatch.rounds.push({
+                total: roundTotal,
+                logs: [...activeMatch.currentLogs]
+            });
+            activeMatch.currentLogs = [];
+            updateRecordUI();
+            alert(`第 ${activeMatch.rounds.length} 將資料已暫存`);
+        }
+
+        function confirmSettle() {
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-black mb-4">確定結算？</h2>
+                    <p class="text-slate-500 mb-8 font-bold">結算後將保存數據至日曆與成員記錄。</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="closeModal()" class="py-4 bg-slate-100 rounded-2xl font-bold">取消</button>
+                        <button onclick="settleMatch()" class="py-4 bg-emerald-600 text-white rounded-2xl font-bold">結算</button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+
+        async function settleMatch() {
+            if (activeMatch.currentLogs.length > 0) {
+                const roundTotal = activeMatch.currentLogs.reduce((acc, l) => acc + l.score, 0);
+                activeMatch.rounds.push({
+                    total: roundTotal,
+                    logs: [...activeMatch.currentLogs]
+                });
+            }
+            
             const m = activeMatch;
-            DB.matches.unshift({
-                id: m.id, date: m.date, loc: m.loc, bets: m.bets,
-                rounds: m.rounds, total: m.overallTotal,
-                stats: m.stats, memberScores: m.memberScores
+            const finalData = {
+                id: m.id,
+                date: m.date,
+                loc: m.loc,
+                bets: m.bets,
+                rounds: m.rounds,
+                total: m.overallTotal,
+                stats: m.stats,
+                memberScores: m.memberScores
+            };
+
+            DB.matches.unshift(finalData);
+
+            m.opponents.forEach(opp => {
+                const dbMem = DB.members.find(x => x.id === opp.id);
+                if (dbMem) {
+                    if (!dbMem.records) dbMem.records = [];
+                    dbMem.records.unshift({
+                        date: m.date,
+                        score: m.memberScores[opp.id]
+                    });
+                }
             });
-            m.members.forEach(mem => {
-                const dbMem = DB.members.find(x => x.id === mem.id);
-                if (dbMem) dbMem.records.unshift({ date: m.date, score: m.memberScores[mem.name] });
-            });
-            saveCloud();
+
+            await saveCloud();
+            
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <div class="text-center">
+                        <p class="text-[10px] font-bold text-emerald-600 uppercase">牌局戰報 (賭注: ${m.bets})</p>
+                        <h2 class="text-4xl font-black ${m.overallTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}">$ ${m.overallTotal}</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-xs font-black text-slate-400">各將盈虧：</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${m.rounds.map((r, i) => `
+                                <div class="bg-slate-50 p-2 rounded-xl text-center">
+                                    <p class="text-[8px] text-slate-400">第 ${i+1} 將</p>
+                                    <p class="font-bold text-xs ${r.total >= 0 ? 'text-emerald-600' : 'text-red-600'}">${r.total}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-xs font-bold text-slate-400">與牌咖盈虧：</p>
+                        ${m.opponents.map(opp => `
+                            <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl">
+                                <span class="font-bold">${opp.emoji} ${opp.name}</span>
+                                <span class="font-black ${m.memberScores[opp.id] >= 0 ? 'text-emerald-500' : 'text-red-500'}">
+                                    ${m.memberScores[opp.id] > 0 ? '+' : ''}${m.memberScores[opp.id]}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="finishSettle()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-black">關閉</button>
+                </div>
+            `;
+            openModal();
+        }
+
+        function finishSettle() {
             activeMatch = null;
             setupSelectedMembers = [];
+            closeModal();
+            switchTab('dashboard');
             document.getElementById('recordView').classList.add('hidden');
             document.getElementById('setupView').classList.remove('hidden');
-            closeModal();
-            updateDashboard();
-        };
+        }
 
-        // --- Member Management ---
-        window.addMember = function() {
+        // --- 成員頁面功能 ---
+        function addMember() {
             const name = document.getElementById('memName').value.trim();
             if (!name) return;
-            DB.members.push({ id: 'mem_'+Date.now(), name, emoji: selectedEmoji, records: [] });
+            DB.members.push({
+                id: 'mem_' + Date.now(),
+                name: name,
+                emoji: selectedEmoji,
+                records: []
+            });
             saveCloud();
             document.getElementById('memName').value = '';
             renderMemberList();
-        };
+            renderSetupMembers();
+        }
 
-        window.renderMemberList = function() {
-            const year = document.getElementById('memYearSelect').value;
+        function renderMemberList() {
+            const yearSelect = document.getElementById('memYearSelect');
+            const year = yearSelect ? yearSelect.value : 'all';
             const display = document.getElementById('memberListDisplay');
-            const membersWithScores = DB.members.map(m => {
-                const score = m.records
+            
+            const scoredMembers = DB.members.map(m => {
+                const yearScore = (m.records || [])
                     .filter(r => year === 'all' || r.date.startsWith(year))
                     .reduce((acc, r) => acc + r.score, 0);
-                return { ...m, currentScore: score };
+                return { ...m, currentScore: yearScore };
             });
-            const sorted = membersWithScores.sort((a,b) => b.currentScore - a.currentScore);
-            display.innerHTML = sorted.map(m => `
-                <div onclick="showMemberLogs('${m.id}')" class="member-card p-5 rounded-[28px] shadow-sm bg-white border border-slate-100 flex justify-between items-center">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-2xl">${m.emoji || '👤'}</div>
-                        <p class="font-black text-slate-800">${m.name}</p>
-                    </div>
-                    <p class="font-black text-xl ${m.currentScore >= 0 ? 'text-emerald-600' : 'text-red-600'}">
-                        ${m.currentScore >= 0 ? '+' : ''}${m.currentScore.toLocaleString()}
-                    </p>
-                </div>`).join('');
-            if (DB.members.length === 0) display.innerHTML = `<div class="text-center py-20 font-bold text-slate-400">尚無成員</div>`;
-        };
 
-        // --- Helper Utilities ---
-        function initEmojiList() {
-            const grid = document.getElementById('emojiSelect');
-            grid.innerHTML = animals.map(a => `<div onclick="selectedEmoji='${a}';initEmojiList()" class="w-8 h-8 flex items-center justify-center cursor-pointer rounded-lg text-lg transition-all ${selectedEmoji === a ? 'bg-emerald-500 scale-125 shadow-lg' : 'bg-slate-100 opacity-40'}">${a}</div>`).join('');
-        }
-        function openModal() { document.getElementById('modal').classList.remove('hidden'); }
-        window.closeModal = function() { document.getElementById('modal').classList.add('hidden'); };
-        window.changeMonth = function(step) { viewDate.setMonth(viewDate.getMonth() + step); renderCalendar(); };
-        window.setBet = function(base, rate, btn) {
-            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('bet-active'));
-            btn.classList.add('bet-active');
-            if (base === 'custom') { document.getElementById('customBetArea').classList.remove('hidden'); } 
-            else { document.getElementById('customBetArea').classList.add('hidden'); document.getElementById('betBase').value = base; document.getElementById('betRate').value = rate; }
-        };
-        window.toggleRecTypeUI = function() {
-            const type = document.getElementById('recType').value;
-            if (type === '自摸') {
-                document.getElementById('selfDrawInputArea').classList.remove('hidden');
-                document.getElementById('normalInputArea').classList.add('hidden');
-                document.getElementById('selfDrawFields').innerHTML = activeMatch.members.map(m => `<div class="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100"><span class="text-2xl">${m.emoji}</span><span class="text-xs font-bold w-16 truncate">${m.name}</span><input type="number" data-mid="${m.id}" class="sd-input flex-1 p-2 rounded-xl bg-white border-none outline-none font-black text-emerald-600 text-right" placeholder="0"></div>`).join('');
-            } else {
-                document.getElementById('selfDrawInputArea').classList.add('hidden');
-                document.getElementById('normalInputArea').classList.remove('hidden');
-                document.getElementById('recTargetList').innerHTML = activeMatch.members.map(m => `<button onclick="selectRecMember('${m.id}')" id="btn-m-${m.id}" class="rec-mem-btn px-4 py-3 bg-white border border-slate-200 shadow-sm rounded-xl text-xs font-black transition-all">${m.name}</button>`).join('');
-                selectRecMember(null);
+            // 負值為輸給我 (金主), 正值為贏我錢 (債主)
+            let king = null, debtor = null;
+            if (scoredMembers.length > 0) {
+                const sortedByWin = [...scoredMembers].sort((a,b) => a.currentScore - b.currentScore); // 由小到大
+                if (sortedByWin[0].currentScore < 0) king = sortedByWin[0]; // 負最多的
+                
+                const sortedByLoss = [...scoredMembers].sort((a,b) => b.currentScore - a.currentScore); // 由大到小
+                if (sortedByLoss[0].currentScore > 0) debtor = sortedByLoss[0]; // 正最多的
             }
-        };
-        window.selectRecMember = function(id) {
-            selectedRecMember = id;
-            document.querySelectorAll('.rec-mem-btn').forEach(b => b.classList.remove('bg-slate-900', 'text-white', 'border-slate-900'));
-            if (id) document.getElementById(`btn-m-${id}`).classList.add('bg-slate-900', 'text-white', 'border-slate-900');
-        };
+
+            const normalMembers = scoredMembers.filter(m => 
+                (king ? m.id !== king.id : true) && (debtor ? m.id !== debtor.id : true)
+            ).sort((a,b) => b.currentScore - a.currentScore);
+
+            let html = '';
+            if (king) html += renderMemberItem(king, 'bg-emerald-50 border-emerald-200', '💰 大金主');
+            if (debtor) html += renderMemberItem(debtor, 'bg-red-50 border-red-200', '🧧 大債主');
+            normalMembers.forEach(m => html += renderMemberItem(m, 'bg-white border-slate-100'));
+
+            display.innerHTML = html || `<p class="text-center text-slate-400 py-8">尚未新增任何成員</p>`;
+        }
+
+        function renderMemberItem(m, classStr, tag = '') {
+            return `
+                <div onclick="showMemberDetail('${m.id}')" class="member-card p-5 rounded-[28px] border shadow-sm flex justify-between items-center ${classStr}">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm">${m.emoji}</div>
+                        <div>
+                            ${tag ? `<span class="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-white border mb-1 inline-block">${tag}</span>` : ''}
+                            <h4 class="font-black text-slate-800">${m.name}</h4>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] font-bold text-slate-400">與我勝負</p>
+                        <p class="font-black ${m.currentScore >= 0 ? 'text-emerald-600' : 'text-red-600'}">${m.currentScore > 0 ? '+' : ''}${m.currentScore}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 詳情與刪除 ---
+        function showDailyMatches(dateStr) {
+            const matches = DB.matches.filter(m => m.date === dateStr);
+            if (matches.length === 0) return;
+
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <h3 class="text-xl font-black text-slate-800">${dateStr} 戰績</h3>
+                    <div class="space-y-2">
+                        ${matches.map((m, idx) => `
+                            <button onclick="showMatchDetail('${m.id}')" class="w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center border hover:border-emerald-500 transition-all">
+                                <div class="text-left">
+                                    <span class="text-[10px] font-bold text-slate-400">賭注: ${m.bets}</span>
+                                    <p class="font-bold">${m.loc}</p>
+                                </div>
+                                <span class="font-black ${m.total >= 0 ? 'text-emerald-600' : 'text-red-600'}">${m.total > 0 ? '+' : ''}${m.total}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                    <button onclick="closeModal()" class="w-full py-4 bg-slate-100 rounded-2xl font-bold">返回</button>
+                </div>
+            `;
+            openModal();
+        }
+
+        function showMatchDetail(matchId) {
+            const m = DB.matches.find(x => x.id === matchId);
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex justify-between items-start">
+                        <button onclick="showDailyMatches('${m.date}')" class="text-slate-400 font-bold">◀ 返回列表</button>
+                        <button onclick="confirmDeleteMatch('${m.id}')" class="text-red-400 font-bold">🗑️ 刪除場次</button>
+                    </div>
+                    <div class="text-center pt-4">
+                        <h3 class="text-3xl font-black ${m.total >= 0 ? 'text-emerald-600' : 'text-red-600'}">$ ${m.total}</h3>
+                        <p class="text-xs text-slate-400 font-bold mt-1">${m.date} | 賭注 ${m.bets}</p>
+                    </div>
+                    <div class="space-y-3">
+                        <p class="text-xs font-black text-slate-400">分將詳情：</p>
+                        ${m.rounds.map((r, i) => `
+                            <div class="bg-slate-50 p-3 rounded-xl flex justify-between text-sm">
+                                <span class="font-bold">第 ${i+1} 將</span>
+                                <span class="font-black ${r.total >= 0 ? 'text-emerald-600' : 'text-red-600'}">${r.total >= 0 ? '+' : ''}${r.total}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="space-y-2">
+                         <p class="text-xs font-black text-slate-400">與牌咖盈虧：</p>
+                        ${Object.entries(m.memberScores).map(([mid, score]) => {
+                            const mem = DB.members.find(x => x.id === mid) || {name: '已刪除', emoji: '👤'};
+                            return `
+                                <div class="flex justify-between text-sm border-b pb-2">
+                                    <span>${mem.emoji} ${mem.name}</span>
+                                    <span class="font-bold ${score >= 0 ? 'text-emerald-500' : 'text-red-500'}">${score > 0 ? '+' : ''}${score}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function confirmDeleteMatch(id) {
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-black mb-4">刪除此場次？</h2>
+                    <p class="text-slate-500 mb-8 font-bold text-sm text-red-500">此動作將同時扣除成員的對應戰績，且無法復原。</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="closeModal()" class="py-4 bg-slate-100 rounded-2xl font-bold">取消</button>
+                        <button onclick="deleteMatch('${id}')" class="py-4 bg-red-500 text-white rounded-2xl font-bold">確認刪除</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function deleteMatch(id) {
+            const match = DB.matches.find(m => m.id === id);
+            if (!match) return;
+
+            // 扣回成員歷史
+            Object.entries(match.memberScores).forEach(([mid, score]) => {
+                const mem = DB.members.find(x => x.id === mid);
+                if (mem && mem.records) {
+                    const rIdx = mem.records.findIndex(r => r.date === match.date && r.score === score);
+                    if (rIdx !== -1) mem.records.splice(rIdx, 1);
+                }
+            });
+
+            DB.matches = DB.matches.filter(m => m.id !== id);
+            await saveCloud();
+            closeModal();
+            updateDashboard();
+        }
+
+        function showMemberDetail(id) {
+            const m = DB.members.find(x => x.id === id);
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center text-4xl mx-auto shadow-sm mb-4">${m.emoji}</div>
+                        <h3 class="text-2xl font-black">${m.name}</h3>
+                    </div>
+                    <div class="max-h-60 overflow-y-auto space-y-2 pr-2">
+                        ${(m.records || []).map(r => `
+                            <div class="flex justify-between text-sm border-b pb-2">
+                                <span class="text-slate-400 font-bold">${r.date}</span>
+                                <span class="font-black ${r.score >= 0 ? 'text-emerald-500' : 'text-red-500'}">${r.score > 0 ? '+' : ''}${r.score}</span>
+                            </div>
+                        `).join('') || '<p class="text-center text-slate-300">無歷史記錄</p>'}
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="editMemberUI('${m.id}')" class="py-4 bg-slate-100 rounded-2xl font-bold">編輯</button>
+                        <button onclick="closeModal()" class="py-4 bg-slate-900 text-white rounded-2xl font-bold">關閉</button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+
+        function editMemberUI(id) {
+            const m = DB.members.find(x => x.id === id);
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <h3 class="text-xl font-black">編輯成員</h3>
+                    <div id="editEmojiGrid" class="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto bg-slate-50 p-2 rounded-xl">
+                        ${animals.map(e => `<button onclick="window.tempEmoji='${e}'; updateEditEmojiUI(this)" class="emoji-btn ${e === m.emoji ? 'selected' : ''}">${e}</button>`).join('')}
+                    </div>
+                    <input type="text" id="editMemName" value="${m.name}" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none ring-1 ring-slate-200">
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="confirmDeleteMember('${m.id}')" class="py-4 text-red-500 font-bold border border-red-100 rounded-2xl">刪除成員</button>
+                        <button onclick="updateMember('${m.id}')" class="py-4 bg-emerald-600 text-white rounded-2xl font-bold">保存修改</button>
+                    </div>
+                </div>
+            `;
+            window.tempEmoji = m.emoji;
+        }
+
+        function updateEditEmojiUI(btn) {
+            document.querySelectorAll('#editEmojiGrid .emoji-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        async function updateMember(id) {
+            const m = DB.members.find(x => x.id === id);
+            m.name = document.getElementById('editMemName').value.trim();
+            m.emoji = window.tempEmoji;
+            await saveCloud();
+            closeModal();
+            renderMemberList();
+            renderSetupMembers();
+        }
+
+        function confirmDeleteMember(id) {
+            const m = DB.members.find(x => x.id === id);
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-black mb-4">刪除 ${m.name}？</h2>
+                    <p class="text-slate-500 mb-8 font-bold text-sm">刪除後此成員將不再出現在列表中。歷史對戰數據將保留名稱，但無法再與之建立新局。</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="editMemberUI('${id}')" class="py-4 bg-slate-100 rounded-2xl font-bold">取消</button>
+                        <button onclick="deleteMember('${id}')" class="py-4 bg-red-500 text-white rounded-2xl font-bold">確認刪除</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function deleteMember(id) {
+            DB.members = DB.members.filter(m => m.id !== id);
+            setupSelectedMembers = setupSelectedMembers.filter(mid => mid !== id);
+            await saveCloud();
+            closeModal();
+            renderMemberList();
+            renderSetupMembers();
+        }
+
+        function openModal() { document.getElementById('modal').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
     </script>
 </body>
 </html>
