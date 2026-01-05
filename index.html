@@ -3,17 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>麻將大師計分器 (雲端同步版)</title>
+    <title>麻將大師計分器 (專業同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body { background-color: #f1f5f9; font-family: 'Noto Sans TC', sans-serif; padding-bottom: 40px; touch-action: manipulation; }
         .tab-active { color: #059669; border-bottom: 4px solid #059669; }
         .calendar-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 0.875rem; cursor: pointer; position: relative; transition: all 0.2s; }
-        .day-win { background-color: #22c55e !important; color: white; }
-        .day-loss { background-color: #ef4444 !important; color: white; }
-        #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .day-win { background-color: #22c55e !important; color: white; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.4); }
+        .day-loss { background-color: #ef4444 !important; color: white; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4); }
+        .member-card { transition: all 0.2s; cursor: pointer; }
+        .member-card:active { transform: scale(0.98); }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        .scroll-hide::-webkit-scrollbar { display: none; }
         .bet-active { background-color: #059669 !important; color: white !important; }
+        #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
@@ -31,22 +35,46 @@
             <button onclick="switchTab('members')" id="tab-members" class="flex-1 py-4 font-black text-center text-slate-400">成員</button>
         </nav>
 
-        <main class="p-4 flex-grow">
+        <main class="p-4 flex-grow overflow-x-hidden">
             <!-- 總覽頁面 -->
             <section id="page-dashboard" class="space-y-4">
-                <div class="bg-white rounded-3xl p-6 shadow-sm">
+                <div class="glass-card rounded-3xl p-6 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-black">數據統計</h3>
+                        <h3 class="font-black text-slate-800">數據統計</h3>
+                        <select id="dashYearSelect" onchange="updateDashboard()" class="bg-slate-100 border-none rounded-lg px-2 py-1 text-sm font-bold"></select>
                     </div>
-                    <div class="grid grid-cols-1 gap-3">
-                        <div id="netProfitBox" class="rounded-2xl p-5 text-center text-white bg-emerald-600 shadow-lg">
-                            <p class="text-[10px] opacity-70 font-bold tracking-wider">總淨勝負</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div id="netProfitBox" class="col-span-2 rounded-2xl p-5 text-center text-white transition-colors bg-emerald-600">
+                            <p class="text-[10px] opacity-70 font-bold uppercase tracking-wider">淨勝負</p>
                             <h2 id="dashNet" class="text-4xl font-black mt-1">$ 0</h2>
+                        </div>
+                        <div class="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 text-center">
+                            <p class="text-[10px] text-emerald-600 font-bold">總贏額</p>
+                            <p id="dashWin" class="text-xl font-black text-emerald-700">$ 0</p>
+                        </div>
+                        <div class="bg-red-50 rounded-2xl p-3 border border-red-100 text-center">
+                            <p class="text-[10px] text-red-600 font-bold">總輸額</p>
+                            <p id="dashLoss" class="text-xl font-black text-red-700">$ 0</p>
+                        </div>
+                        <div class="bg-blue-50 rounded-2xl p-3 border border-blue-100 text-center">
+                            <p class="text-[10px] text-blue-600 font-bold">總場次</p>
+                            <p id="dashMatches" class="text-xl font-black text-blue-700">0</p>
+                        </div>
+                        <div class="bg-purple-50 rounded-2xl p-3 border border-purple-100 text-center">
+                            <p class="text-[10px] text-purple-600 font-bold">勝率</p>
+                            <p id="dashWinRate" class="text-xl font-black text-purple-700">0%</p>
                         </div>
                     </div>
                 </div>
+
                 <div class="bg-white rounded-3xl p-6 shadow-sm">
-                    <h3 id="calTitle" class="font-black mb-4 text-center">2025年</h3>
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 id="calTitle" class="font-black text-slate-800">2025年 1月</h3>
+                        <div class="flex gap-2">
+                            <button onclick="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full font-bold">◀</button>
+                            <button onclick="changeMonth(1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full font-bold">▶</button>
+                        </div>
+                    </div>
                     <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
                 </div>
             </section>
@@ -55,27 +83,73 @@
             <section id="page-tracker" class="hidden">
                 <div id="setupView" class="space-y-4">
                     <div class="bg-white rounded-3xl p-6 shadow-sm space-y-6">
-                        <h2 class="text-2xl font-black">建立新牌局</h2>
-                        <input type="date" id="setupDate" class="w-full p-4 bg-slate-50 rounded-2xl font-bold">
-                        <p class="text-xs font-bold text-slate-400">請選取 3 位對手：</p>
-                        <div id="setupMemberList" class="flex gap-3 overflow-x-auto pb-2 min-h-[80px]"></div>
-                        <button onclick="startMatch()" class="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black shadow-xl">開始計分</button>
+                        <h2 class="text-2xl font-black text-slate-800">建立新牌局</h2>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-[10px] font-black text-slate-400">日期</label>
+                                    <input type="date" id="setupDate" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black text-slate-400">地點</label>
+                                    <input type="text" id="setupLoc" placeholder="輸入地點" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 mb-2 block">選擇牌咖 (三位)</label>
+                                <div id="setupMemberList" class="flex gap-3 overflow-x-auto pb-2 scroll-hide min-h-[80px]"></div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 mb-2 block">選擇賭注</label>
+                                <div class="grid grid-cols-4 gap-2 mb-2">
+                                    <button onclick="setBet(30,10,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">30/10</button>
+                                    <button onclick="setBet(50,20,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">50/20</button>
+                                    <button onclick="setBet(100,20,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">100/20</button>
+                                    <button onclick="setBet('custom','',this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">自訂</button>
+                                </div>
+                                <div id="customBetArea" class="hidden grid grid-cols-2 gap-4">
+                                    <input type="number" id="betBase" placeholder="底" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                                    <input type="number" id="betRate" placeholder="台" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="startMatch()" class="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black text-lg shadow-xl active:scale-95 transition-all">開始計分</button>
                     </div>
                 </div>
+
                 <div id="recordView" class="hidden space-y-4">
-                    <div class="bg-slate-900 text-white rounded-[32px] p-8">
-                        <h2 id="liveNet" class="text-6xl font-black">$ 0</h2>
-                        <p class="mt-2 opacity-50">當前累積勝負</p>
+                    <div class="bg-slate-900 text-white rounded-[32px] p-8 shadow-2xl">
+                        <p class="text-[10px] font-bold opacity-50 tracking-widest uppercase">目前總勝負</p>
+                        <h2 id="liveNet" class="text-6xl font-black mt-1 tracking-tighter">$ 0</h2>
+                        <div class="flex justify-between mt-4 opacity-70 text-[10px] font-bold">
+                            <span id="liveRoundInfo">第 1 將</span>
+                            <span id="liveBetInfo">100 / 20</span>
+                        </div>
                     </div>
-                    <div class="bg-white rounded-[32px] p-6 space-y-4">
-                        <select id="recType" class="w-full p-4 bg-slate-100 rounded-2xl font-black">
-                            <option value="胡牌">我胡牌 (+)</option>
-                            <option value="放槍">我放槍 (-)</option>
+                    <div class="bg-white rounded-[32px] p-6 shadow-sm space-y-4">
+                        <select id="recType" onchange="toggleRecTypeUI()" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none">
+                            <option value="胡牌">胡牌 (+)</option>
+                            <option value="自摸">自摸 (+)</option>
+                            <option value="放槍">放槍 (-)</option>
+                            <option value="被自摸">被自摸 (-)</option>
                         </select>
-                        <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black">
-                        <div id="recTargetList" class="flex gap-2 overflow-x-auto py-2"></div>
-                        <button onclick="addLog()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">新增此紀錄</button>
-                        <button onclick="settleMatch()" class="w-full bg-orange-500 text-white py-4 rounded-2xl font-black mt-2">牌局結束並存檔</button>
+                        <div id="selfDrawInputArea" class="hidden space-y-2">
+                            <p class="text-[10px] font-black text-slate-400">請輸入三家輸給你的金額</p>
+                            <div id="selfDrawFields" class="space-y-2"></div>
+                        </div>
+                        <div id="normalInputArea">
+                            <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none">
+                            <div id="recTargetList" class="flex gap-2 overflow-x-auto mt-3 py-2 scroll-hide"></div>
+                        </div>
+                        <button onclick="addLog()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">記錄勝負</button>
+                    </div>
+                    <div class="bg-white rounded-[32px] p-6 shadow-sm">
+                        <h3 class="font-black text-slate-800 mb-4">本將明細</h3>
+                        <div id="logList" class="space-y-2 max-h-64 overflow-y-auto pr-2"></div>
+                        <div class="grid grid-cols-2 gap-3 mt-6">
+                            <button onclick="nextRound()" class="bg-slate-100 text-slate-500 py-4 rounded-2xl font-black">下一將</button>
+                            <button onclick="confirmSettle()" class="bg-orange-500 text-white py-4 rounded-2xl font-black shadow-lg">結算牌局</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -83,30 +157,49 @@
             <!-- 成員頁面 -->
             <section id="page-members" class="hidden space-y-6">
                 <div class="bg-white rounded-3xl p-6 shadow-sm">
-                    <h2 class="text-xl font-black mb-4">新增成員</h2>
+                    <h2 class="text-xl font-black text-slate-800 mb-4">新增成員</h2>
+                    <div id="emojiSelect" class="grid grid-cols-10 gap-2 mb-4"></div>
                     <div class="flex gap-2">
-                        <input type="text" id="memName" placeholder="輸入名字" class="flex-1 p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                        <input type="text" id="memName" placeholder="輸入名字" class="flex-1 p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none">
                         <button onclick="addMember()" class="bg-emerald-600 text-white px-8 rounded-2xl font-black">新增</button>
                     </div>
                 </div>
-                <div id="memberListDisplay" class="space-y-3"></div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center px-2">
+                        <h3 class="font-black text-slate-800">成員列表</h3>
+                        <select id="memYearSelect" onchange="renderMemberList()" class="bg-white border-none rounded-lg px-2 py-1 text-xs font-bold shadow-sm"></select>
+                    </div>
+                    <div id="memberListDisplay" class="space-y-3"></div>
+                </div>
             </section>
         </main>
+
+        <!-- 通用彈窗 -->
+        <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal()"></div>
+            <div class="bg-white w-full max-w-sm rounded-[40px] shadow-2xl relative z-10 p-8 max-h-[85vh] overflow-y-auto scroll-hide">
+                <div id="modalContent"></div>
+            </div>
+        </div>
     </div>
 
-    <!-- Firebase SDK 載入 (使用相容模式) -->
+    <!-- Firebase SDK (相容模式) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script>
-        // --- 核心變數 ---
+        // --- 核心數據結構 ---
         let DB = { members: [], matches: [] };
-        let user = null;
+        const animals = ['🐶','🐱','🐹','🦊','🐻','🐼','🐨','🦁','🐮','🐷','🐸','🐵','🐔','🦄','🐝','🦖','🐙','👽','👻','🐯'];
+        let curTab = 'dashboard';
+        let viewDate = new Date();
+        let selectedEmoji = animals[0];
         let setupSelectedMembers = [];
         let activeMatch = null;
         let selectedRecMember = null;
-        const appId = "mahjong-app-v3";
+        let user = null;
+        const appId = "mahjong-pro-v4"; // 升級版本號以避免快取問題
 
         // --- Firebase 初始化 ---
         const firebaseConfig = {
@@ -122,153 +215,476 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // --- 核心功能 (掛載到全域) ---
-        window.switchTab = function(tab) {
-            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
-            document.getElementById('page-' + tab).classList.remove('hidden');
-            document.querySelectorAll('nav button').forEach(b => b.classList.replace('tab-active', 'text-slate-400'));
-            document.getElementById('tab-' + tab).classList.add('tab-active');
-            renderUI();
+        // --- 初始化頁面 ---
+        window.onload = () => {
+            initEmojiList();
+            document.getElementById('setupDate').valueAsDate = new Date();
         };
 
-        window.addMember = function() {
-            const name = document.getElementById('memName').value.trim();
-            if (!name) return;
-            DB.members.push({ id: 'mem_' + Date.now(), name: name, emoji: '🀄', records: [] });
-            saveCloud();
-            document.getElementById('memName').value = '';
-            renderUI();
-        };
-
-        window.toggleSetup = function(id) {
-            if (setupSelectedMembers.includes(id)) {
-                setupSelectedMembers = setupSelectedMembers.filter(x => x !== id);
-            } else if (setupSelectedMembers.length < 3) {
-                setupSelectedMembers.push(id);
-            }
-            renderSetupMembers();
-        };
-
-        window.startMatch = function() {
-            if (setupSelectedMembers.length !== 3) return alert('請選擇 3 位對手！');
-            activeMatch = {
-                date: document.getElementById('setupDate').value,
-                overallTotal: 0,
-                memberScores: {},
-                members: DB.members.filter(m => setupSelectedMembers.includes(m.id))
-            };
-            activeMatch.members.forEach(m => activeMatch.memberScores[m.name] = 0);
-            document.getElementById('setupView').classList.add('hidden');
-            document.getElementById('recordView').classList.remove('hidden');
-            updateRecordUI();
-        };
-
-        window.setRecMember = function(id) {
-            selectedRecMember = id;
-            updateRecordUI();
-        };
-
-        window.addLog = function() {
-            const val = parseInt(document.getElementById('recVal').value) || 0;
-            if (!selectedRecMember) return alert('請先點擊選取下方其中一位成員！');
-            const type = document.getElementById('recType').value;
-            const m = activeMatch.members.find(x => x.id === selectedRecMember);
-            
-            if (type === '胡牌') {
-                activeMatch.overallTotal += val;
-                activeMatch.memberScores[m.name] -= val;
-            } else {
-                activeMatch.overallTotal -= val;
-                activeMatch.memberScores[m.name] += val;
-            }
-            document.getElementById('recVal').value = '';
-            updateRecordUI();
-        };
-
-        window.settleMatch = function() {
-            DB.matches.unshift({ date: activeMatch.date, total: activeMatch.overallTotal });
-            activeMatch.members.forEach(mem => {
-                const dbMem = DB.members.find(x => x.id === mem.id);
-                if (dbMem) dbMem.records.unshift({ date: activeMatch.date, score: activeMatch.memberScores[mem.name] });
-            });
-            activeMatch = null;
-            saveCloud();
-            window.switchTab('dashboard');
-            document.getElementById('recordView').classList.add('hidden');
-            document.getElementById('setupView').classList.remove('hidden');
-        };
-
-        // --- UI 渲染 ---
-        function renderUI() {
-            renderMemberList();
-            renderDashboard();
-            renderSetupMembers();
-            if (!document.getElementById('setupDate').value) {
-                document.getElementById('setupDate').valueAsDate = new Date();
-            }
-        }
-
-        function renderDashboard() {
-            const net = DB.matches.reduce((acc, m) => acc + m.total, 0);
-            document.getElementById('dashNet').innerText = '$ ' + net;
-            document.getElementById('netProfitBox').style.backgroundColor = net >= 0 ? '#059669' : '#ef4444';
-        }
-
-        function renderMemberList() {
-            const display = document.getElementById('memberListDisplay');
-            if (!DB.members.length) {
-                display.innerHTML = '<p class="text-center text-slate-400 py-10 font-bold">目前沒有成員</p>';
-                return;
-            }
-            display.innerHTML = DB.members.map(m => {
-                const total = m.records.reduce((acc, r) => acc + r.score, 0);
-                return `
-                    <div class="p-5 rounded-[28px] flex justify-between items-center bg-white shadow-sm border border-slate-100">
-                        <span class="font-black">🀄 ${m.name}</span>
-                        <span class="font-black text-xl ${total >= 0 ? 'text-emerald-600' : 'text-red-600'}">${total >= 0 ? '+' : ''}${total}</span>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderSetupMembers() {
-            const list = document.getElementById('setupMemberList');
-            if (!list) return;
-            list.innerHTML = DB.members.map(m => `
-                <div onclick="toggleSetup('${m.id}')" class="flex-shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-transparent bg-slate-100 text-slate-400'}">
-                    <span class="text-2xl mb-1">👤</span>${m.name}
-                </div>
-            `).join('');
-        }
-
-        function updateRecordUI() {
-            document.getElementById('liveNet').innerText = '$ ' + activeMatch.overallTotal;
-            document.getElementById('recTargetList').innerHTML = activeMatch.members.map(m => `
-                <button onclick="setRecMember('${m.id}')" class="px-6 py-3 rounded-2xl text-sm font-black transition-all ${selectedRecMember === m.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}">
-                    ${m.name}
-                </button>
-            `).join('');
-        }
-
-        // --- 雲端同步 ---
+        // --- 雲端同步邏輯 ---
         function saveCloud() {
             if (!user) return;
-            db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({ mahjongDB: DB });
+            db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({ mahjongDB: DB })
+              .catch(err => console.error("雲端存檔失敗:", err));
         }
 
-        // --- 啟動程序 ---
         auth.signInAnonymously().then(cred => {
             user = cred.user;
             db.collection('artifacts').doc(appId).collection('users').doc(user.uid).onSnapshot(doc => {
                 if (doc.exists && doc.data().mahjongDB) {
                     DB = doc.data().mahjongDB;
+                    // 同步後重新整理所有 UI
+                    initYearSelects();
+                    updateDashboard();
+                    if (curTab === 'members') renderMemberList();
+                    if (curTab === 'tracker' && !activeMatch) renderSetupMembers();
+                } else {
+                    // 如果雲端沒資料，初始化年份選單
+                    initYearSelects();
                 }
-                renderUI();
+                document.getElementById('loading-overlay').style.display = 'none';
+            }, err => {
+                console.error("即時同步錯誤:", err);
                 document.getElementById('loading-overlay').style.display = 'none';
             });
         }).catch(err => {
-            alert('登入失敗，請檢查 Firebase 控制台是否已啟用匿名登入！');
+            alert('Firebase 連線失敗，請檢查權限設定！');
+            document.getElementById('loading-overlay').style.display = 'none';
         });
+
+        // --- 頁面功能 (恢復專業版) ---
+        function initYearSelects() {
+            const years = ['all', ...new Set(DB.matches.map(m => m.date.split('-')[0]))];
+            const curY = new Date().getFullYear().toString();
+            if (!years.includes(curY)) years.push(curY);
+            years.sort((a,b) => b === 'all' ? 1 : b - a);
+            
+            ['dashYearSelect', 'memYearSelect'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.innerHTML = years.map(y => `<option value="${y}">${y === 'all' ? '全年累計' : y + ' 年'}</option>`).join('');
+                el.value = curY;
+            });
+        }
+
+        window.switchTab = function(tab) {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`page-${tab}`).classList.remove('hidden');
+            document.querySelectorAll('nav button').forEach(b => {
+                b.classList.remove('tab-active', 'text-slate-400');
+                if (b.id === `tab-${tab}`) b.classList.add('tab-active');
+                else b.classList.add('text-slate-400');
+            });
+            if (tab === 'dashboard') updateDashboard();
+            if (tab === 'tracker' && !activeMatch) renderSetupMembers();
+            if (tab === 'members') renderMemberList();
+            curTab = tab;
+        };
+
+        // --- 總覽功能 ---
+        window.updateDashboard = function() {
+            const year = document.getElementById('dashYearSelect').value;
+            const filtered = DB.matches.filter(m => year === 'all' || m.date.startsWith(year));
+            let win = 0, loss = 0, winCount = 0;
+            filtered.forEach(m => {
+                if (m.total > 0) { win += m.total; winCount++; }
+                else loss += Math.abs(m.total);
+            });
+            const net = win - loss;
+            document.getElementById('dashNet').innerText = `$ ${net}`;
+            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white transition-colors ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
+            document.getElementById('dashWin').innerText = `$ ${win}`;
+            document.getElementById('dashLoss').innerText = `$ ${loss}`;
+            document.getElementById('dashMatches').innerText = filtered.length;
+            document.getElementById('dashWinRate').innerText = filtered.length > 0 ? Math.round((winCount/filtered.length)*100)+'%' : '0%';
+            renderCalendar();
+        };
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const y = viewDate.getFullYear(), m = viewDate.getMonth();
+            document.getElementById('calTitle').innerText = `${y}年 ${m + 1}月`;
+            const firstDay = new Date(y, m, 1).getDay();
+            const daysInMonth = new Date(y, m+1, 0).getDate();
+            grid.innerHTML = '';
+            for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const daysMatches = DB.matches.filter(m => m.date === dateStr);
+                const net = daysMatches.reduce((acc, m) => acc + m.total, 0);
+                const el = document.createElement('div');
+                el.className = `calendar-day font-black ${daysMatches.length > 0 ? (net >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'}`;
+                el.innerText = d;
+                el.onclick = () => showDailyDetail(dateStr);
+                grid.appendChild(el);
+            }
+        }
+
+        window.showDailyDetail = function(date) {
+            const matches = DB.matches.filter(m => m.date === date);
+            if (matches.length === 0) return;
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <h2 class="text-xl font-black mb-4">${date} 牌局</h2>
+                <div class="space-y-3">
+                    ${matches.map((m, idx) => `
+                        <div onclick='showMatchDetail(${JSON.stringify(m)})' class="p-4 bg-slate-50 rounded-2xl border border-slate-100 cursor-pointer active:scale-95 transition-all">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-black text-slate-700">場次 ${matches.length - idx}</span>
+                                <span class="font-black ${m.total>=0?'text-emerald-500':'text-red-500'}">${m.total>=0?'+':''}${m.total}</span>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-400">${m.loc} · ${m.bets}</p>
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="closeModal()" class="w-full mt-4 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold">關閉</button>
+            `;
+            openModal();
+        };
+
+        window.showMatchDetail = function(m) {
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-start">
+                        <button onclick='showDailyDetail("${m.date}")' class="text-emerald-600 font-bold text-sm">◀ 返回日期</button>
+                        <button onclick='confirmDeleteMatch("${m.id || ''}", "${m.date}", ${m.total})' class="text-red-400 hover:text-red-600">
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800">${m.date} 戰報</h2>
+                        <p class="text-xs font-bold text-slate-400">${m.loc} | ${m.bets}</p>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 text-center">
+                        <div class="bg-emerald-50 p-2 rounded-xl"><p class="text-[8px] text-emerald-600 font-bold">胡</p><p class="font-black">${m.stats.h}</p></div>
+                        <div class="bg-emerald-100 p-2 rounded-xl"><p class="text-[8px] text-emerald-700 font-bold">摸</p><p class="font-black">${m.stats.m}</p></div>
+                        <div class="bg-red-50 p-2 rounded-xl"><p class="text-[8px] text-red-600 font-bold">放</p><p class="font-black">${m.stats.f}</p></div>
+                        <div class="bg-red-100 p-2 rounded-xl"><p class="text-[8px] text-red-700 font-bold">被</p><p class="font-black">${m.stats.b}</p></div>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-[10px] font-black text-slate-400 uppercase">與牌咖勝負</p>
+                        ${Object.entries(m.memberScores).map(([name, score]) => `
+                            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                                <span class="font-bold text-slate-700">${name}</span>
+                                <span class="font-black ${score >= 0 ? 'text-emerald-500' : 'text-red-500'}">${score >= 0 ? '+' : ''}${score}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="closeModal()" class="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black">關閉</button>
+                </div>
+            `;
+            openModal();
+        };
+
+        window.confirmDeleteMatch = function(id, date, total) {
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <h2 class="text-xl font-black mb-4 text-red-600">刪除場次</h2>
+                <p class="text-slate-500 mb-6 font-bold">您確定要刪除這場牌局紀錄嗎？</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick='showDailyDetail("${date}")' class="py-4 bg-slate-100 rounded-2xl font-black">取消</button>
+                    <button onclick='deleteMatch("${id}", "${date}", ${total})' class="py-4 bg-red-500 text-white rounded-2xl font-black shadow-lg">確認刪除</button>
+                </div>
+            `;
+            openModal();
+        };
+
+        window.deleteMatch = function(id, date, total) {
+            const idx = DB.matches.findIndex(m => m.id === id || (m.date === date && m.total === total));
+            if (idx === -1) return;
+            const match = DB.matches[idx];
+            Object.entries(match.memberScores).forEach(([name, score]) => {
+                const member = DB.members.find(m => m.name === name);
+                if (member) {
+                    const rIdx = member.records.findIndex(r => r.date === date && r.score === score);
+                    if (rIdx !== -1) member.records.splice(rIdx, 1);
+                }
+            });
+            DB.matches.splice(idx, 1);
+            saveCloud();
+            updateDashboard();
+            closeModal();
+        };
+
+        // --- 計分功能 ---
+        window.setBet = function(base, rate, btn) {
+            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('bet-active'));
+            btn.classList.add('bet-active');
+            if (base === 'custom') {
+                document.getElementById('customBetArea').classList.remove('hidden');
+            } else {
+                document.getElementById('customBetArea').classList.add('hidden');
+                document.getElementById('betBase').value = base;
+                document.getElementById('betRate').value = rate;
+            }
+        };
+
+        window.renderSetupMembers = function() {
+            const list = document.getElementById('setupMemberList');
+            list.innerHTML = DB.members.map(m => `
+                <div onclick="toggleSetupMember('${m.id}')" class="flex-shrink-0 text-center cursor-pointer">
+                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-all border-2 ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 scale-110' : 'border-transparent bg-slate-100'}">
+                        ${m.emoji || '👤'}
+                    </div>
+                    <p class="text-[10px] font-bold mt-1 ${setupSelectedMembers.includes(m.id) ? 'text-emerald-600' : 'text-slate-400'}">${m.name}</p>
+                </div>
+            `).join('');
+        };
+
+        window.toggleSetupMember = function(id) {
+            if (setupSelectedMembers.includes(id)) setupSelectedMembers = setupSelectedMembers.filter(i => i !== id);
+            else if (setupSelectedMembers.length < 3) setupSelectedMembers.push(id);
+            renderSetupMembers();
+        };
+
+        window.startMatch = function() {
+            if (setupSelectedMembers.length !== 3) return alert('請選擇三位牌咖');
+            const date = document.getElementById('setupDate').value;
+            const loc = document.getElementById('setupLoc').value || '居家';
+            const base = document.getElementById('betBase').value;
+            const rate = document.getElementById('betRate').value;
+            if (!base || !rate) return alert('請設定賭注');
+
+            activeMatch = {
+                id: 'match_' + Date.now(),
+                date, loc, bets: `${base}/${rate}`,
+                members: DB.members.filter(m => setupSelectedMembers.includes(m.id)),
+                rounds: [], currentRoundLogs: [], currentRoundTotal: 0, overallTotal: 0,
+                stats: { h:0, m:0, f:0, b:0 },
+                memberScores: {}
+            };
+            activeMatch.members.forEach(m => activeMatch.memberScores[m.name] = 0);
+            document.getElementById('setupView').classList.add('hidden');
+            document.getElementById('recordView').classList.remove('hidden');
+            document.getElementById('liveBetInfo').innerText = `${base} / ${rate}`;
+            updateRecordUI();
+            toggleRecTypeUI();
+        };
+
+        window.toggleRecTypeUI = function() {
+            const type = document.getElementById('recType').value;
+            const selfArea = document.getElementById('selfDrawInputArea');
+            const normArea = document.getElementById('normalInputArea');
+            if (type === '自摸') {
+                selfArea.classList.remove('hidden');
+                normArea.classList.add('hidden');
+                document.getElementById('selfDrawFields').innerHTML = activeMatch.members.map(m => `
+                    <div class="flex items-center gap-3 bg-slate-50 p-2 rounded-xl">
+                        <span class="text-xl">${m.emoji || '👤'}</span>
+                        <span class="text-xs font-bold w-16 truncate">${m.name}</span>
+                        <input type="number" data-mid="${m.id}" class="sd-input flex-1 p-2 rounded-lg border-none outline-none font-black text-emerald-600" placeholder="金額">
+                    </div>
+                `).join('');
+            } else {
+                selfArea.classList.add('hidden');
+                normArea.classList.remove('hidden');
+                document.getElementById('recTargetList').innerHTML = activeMatch.members.map(m => `
+                    <button onclick="selectRecMember('${m.id}')" id="btn-m-${m.id}" class="rec-mem-btn px-4 py-2 bg-slate-100 rounded-xl text-xs font-black transition-all">
+                        ${m.name}
+                    </button>
+                `).join('');
+                selectRecMember(null);
+            }
+        };
+
+        window.selectRecMember = function(id) {
+            selectedRecMember = id;
+            document.querySelectorAll('.rec-mem-btn').forEach(b => b.classList.remove('bg-slate-900', 'text-white'));
+            if (id) document.getElementById(`btn-m-${id}`).classList.add('bg-slate-900', 'text-white');
+        };
+
+        window.addLog = function() {
+            const type = document.getElementById('recType').value;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (type === '自摸') {
+                let roundWin = 0;
+                let subScores = {};
+                const inputs = document.querySelectorAll('.sd-input');
+                inputs.forEach(input => {
+                    const val = parseInt(input.value) || 0;
+                    const m = activeMatch.members.find(x => x.id === input.dataset.mid);
+                    activeMatch.memberScores[m.name] -= val;
+                    subScores[m.name] = val;
+                    roundWin += val;
+                });
+                activeMatch.currentRoundTotal += roundWin;
+                activeMatch.overallTotal += roundWin;
+                activeMatch.stats.m++;
+                activeMatch.currentRoundLogs.push({ id: Date.now(), time, type, target: '自摸三家', score: roundWin, subScores });
+            } else {
+                const val = parseInt(document.getElementById('recVal').value) || 0;
+                if (!selectedRecMember) return alert('請選擇對應成員');
+                const m = activeMatch.members.find(x => x.id === selectedRecMember);
+                let score = 0;
+                if (type === '胡牌') { score = val; activeMatch.stats.h++; activeMatch.memberScores[m.name] -= val; }
+                if (type === '放槍') { score = -val; activeMatch.stats.f++; activeMatch.memberScores[m.name] += val; }
+                if (type === '被自摸') { score = -val; activeMatch.stats.b++; activeMatch.memberScores[m.name] += val; }
+                activeMatch.currentRoundTotal += score;
+                activeMatch.overallTotal += score;
+                activeMatch.currentRoundLogs.push({ id: Date.now(), time, type, target: m.name, score, targetId: m.id });
+            }
+            document.getElementById('recVal').value = '';
+            updateRecordUI();
+        };
+
+        window.deleteLog = function(logId) {
+            const idx = activeMatch.currentRoundLogs.findIndex(l => l.id === logId);
+            if (idx === -1) return;
+            const log = activeMatch.currentRoundLogs[idx];
+            if (log.type === '自摸') {
+                Object.entries(log.subScores).forEach(([name, val]) => { activeMatch.memberScores[name] += val; });
+                activeMatch.stats.m--;
+            } else {
+                const m = activeMatch.members.find(x => x.id === log.targetId);
+                if (log.type === '胡牌') { activeMatch.memberScores[m.name] += log.score; activeMatch.stats.h--; }
+                if (log.type === '放槍') { activeMatch.memberScores[m.name] -= Math.abs(log.score); activeMatch.stats.f--; }
+                if (log.type === '被自摸') { activeMatch.memberScores[m.name] -= Math.abs(log.score); activeMatch.stats.b--; }
+            }
+            activeMatch.currentRoundTotal -= log.score;
+            activeMatch.overallTotal -= log.score;
+            activeMatch.currentRoundLogs.splice(idx, 1);
+            updateRecordUI();
+        };
+
+        function updateRecordUI() {
+            document.getElementById('liveNet').innerText = `$ ${activeMatch.overallTotal}`;
+            document.getElementById('liveNet').className = `text-6xl font-black mt-1 tracking-tighter ${activeMatch.overallTotal>=0?'text-emerald-400':'text-red-400'}`;
+            document.getElementById('liveRoundInfo').innerText = `第 ${activeMatch.rounds.length + 1} 將`;
+            document.getElementById('logList').innerHTML = activeMatch.currentRoundLogs.slice().reverse().map(l => `
+                <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl mb-2 text-sm">
+                    <div class="flex-grow">
+                        <p class="text-[8px] font-bold text-slate-400">${l.time} | ${l.type}</p>
+                        <p class="font-bold text-slate-700">${l.target}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-black ${l.score>=0?'text-emerald-500':'text-red-500'}">${l.score>=0?'+':''}${l.score}</span>
+                        <button onclick="deleteLog(${l.id})" class="text-red-300 hover:text-red-500 p-1">❌</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.nextRound = function() {
+            activeMatch.rounds.push({ total: activeMatch.currentRoundTotal, logs: [...activeMatch.currentRoundLogs] });
+            activeMatch.currentRoundTotal = 0;
+            activeMatch.currentRoundLogs = [];
+            updateRecordUI();
+        };
+
+        window.confirmSettle = function() {
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <h2 class="text-2xl font-black mb-4">結算確認</h2>
+                <p class="text-slate-500 mb-6 font-bold">確定要結束這場牌局嗎？</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="closeModal()" class="py-4 bg-slate-100 rounded-2xl font-black">取消</button>
+                    <button onclick="settleMatch()" class="py-4 bg-orange-500 text-white rounded-2xl font-black shadow-lg">確認結算</button>
+                </div>
+            `;
+            openModal();
+        };
+
+        window.settleMatch = function() {
+            if (activeMatch.currentRoundLogs.length > 0 || activeMatch.rounds.length === 0) nextRound();
+            const m = activeMatch;
+            DB.matches.unshift({
+                id: m.id, date: m.date, loc: m.loc, bets: m.bets,
+                rounds: m.rounds, total: m.overallTotal,
+                stats: m.stats, memberScores: m.memberScores
+            });
+            m.members.forEach(mem => {
+                const dbMem = DB.members.find(x => x.id === mem.id);
+                if (dbMem) dbMem.records.unshift({ date: m.date, score: m.memberScores[mem.name] });
+            });
+            saveCloud();
+            activeMatch = null;
+            setupSelectedMembers = [];
+            document.getElementById('recordView').classList.add('hidden');
+            document.getElementById('setupView').classList.remove('hidden');
+            closeModal();
+            updateDashboard();
+        };
+
+        // --- 成員管理 ---
+        function initEmojiList() {
+            const grid = document.getElementById('emojiSelect');
+            grid.innerHTML = animals.map(a => `
+                <div onclick="selectedEmoji='${a}';initEmojiList()" class="w-8 h-8 flex items-center justify-center cursor-pointer rounded-lg text-lg transition-all ${selectedEmoji === a ? 'bg-emerald-500 scale-125' : 'bg-slate-100 opacity-40'}">
+                    ${a}
+                </div>
+            `).join('');
+        }
+
+        window.addMember = function() {
+            const name = document.getElementById('memName').value.trim();
+            if (!name) return;
+            DB.members.push({ id: 'mem_'+Date.now(), name, emoji: selectedEmoji, records: [] });
+            saveCloud();
+            document.getElementById('memName').value = '';
+            renderMemberList();
+        };
+
+        window.renderMemberList = function() {
+            const year = document.getElementById('memYearSelect').value;
+            const display = document.getElementById('memberListDisplay');
+            
+            const membersWithScores = DB.members.map(m => {
+                const score = m.records
+                    .filter(r => year === 'all' || r.date.startsWith(year))
+                    .reduce((acc, r) => acc + r.score, 0);
+                return { ...m, currentScore: score };
+            });
+
+            const sorted = [...membersWithScores].sort((a,b) => b.currentScore - a.currentScore);
+            
+            display.innerHTML = sorted.map(m => `
+                <div onclick="showMemberLogs('${m.id}')" class="member-card p-5 rounded-[28px] shadow-sm bg-white border border-slate-100 flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl">${m.emoji || '👤'}</div>
+                        <p class="font-black text-slate-800">${m.name}</p>
+                    </div>
+                    <p class="font-black text-xl ${m.currentScore >= 0 ? 'text-emerald-600' : 'text-red-600'}">
+                        ${m.currentScore >= 0 ? '+' : ''}${m.currentScore}
+                    </p>
+                </div>
+            `).join('');
+            
+            if (DB.members.length === 0) display.innerHTML = '<p class="text-center py-10 text-slate-300 font-bold">目前沒有成員</p>';
+        };
+
+        window.showMemberLogs = function(id) {
+            const m = DB.members.find(x => x.id === id);
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <h2 class="text-2xl font-black mb-4">${m.name} 的紀錄</h2>
+                <div class="space-y-2 max-h-80 overflow-y-auto pr-2">
+                    ${m.records.map(r => `
+                        <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                            <span class="text-xs font-bold text-slate-500">${r.date}</span>
+                            <span class="font-black ${r.score >= 0 ? 'text-emerald-500' : 'text-red-500'}">${r.score >= 0 ? '+' : ''}${r.score}</span>
+                        </div>
+                    `).join('') || '<p class="text-center text-slate-400 py-4">尚無紀錄</p>'}
+                </div>
+                <button onclick="deleteMember('${id}')" class="w-full mt-4 py-3 bg-red-50 text-red-500 rounded-xl font-bold">刪除成員</button>
+                <button onclick="closeModal()" class="w-full mt-2 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold">關閉</button>
+            `;
+            openModal();
+        };
+
+        window.deleteMember = function(id) {
+            if (!confirm("確定要刪除這位成員嗎？歷史計分資料將會保留在牌局中，但成員列表將移除。")) return;
+            DB.members = DB.members.filter(m => m.id !== id);
+            saveCloud();
+            renderMemberList();
+            closeModal();
+        };
+
+        // --- 通用 UI ---
+        function openModal() { document.getElementById('modal').classList.remove('hidden'); }
+        window.closeModal = function() { document.getElementById('modal').classList.add('hidden'); };
+        window.changeMonth = function(step) { viewDate.setMonth(viewDate.getMonth() + step); renderCalendar(); };
+
     </script>
 </body>
 </html>
