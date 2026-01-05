@@ -2,581 +2,358 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>麻將大師計分器 PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻將大師計分器 (雲端同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        body { 
-            background-color: #f8fafc; 
-            font-family: 'Noto Sans TC', sans-serif; 
-            -webkit-tap-highlight-color: transparent;
-        }
-        .tab-active { color: #059669; position: relative; }
-        .tab-active::after { content: ''; position: absolute; bottom: 0; left: 25%; width: 50%; height: 4px; background: #059669; border-radius: 10px; }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
-        .member-chip { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .member-chip.active { background-color: #059669; color: white; transform: scale(1.05); box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
-        #sync-indicator { position: fixed; top: 1rem; right: 1rem; z-index: 100; pointer-events: none; }
-        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #059669; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { background-color: #f1f5f9; font-family: 'Noto Sans TC', sans-serif; padding-bottom: 40px; }
+        .tab-active { color: #059669; border-bottom: 4px solid #059669; }
+        .calendar-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 0.875rem; cursor: pointer; position: relative; transition: all 0.2s; }
+        .day-win { background-color: #22c55e !important; color: white; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.4); }
+        .day-loss { background-color: #ef4444 !important; color: white; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4); }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        .scroll-hide::-webkit-scrollbar { display: none; }
+        .bet-active { background-color: #059669 !important; color: white !important; }
+        #loading-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s; }
+        .error-msg { background: #fee2e2; border: 1px solid #f87171; color: #991b1b; padding: 1rem; border-radius: 1rem; margin-top: 1rem; font-size: 0.875rem; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-
-    <!-- 同步狀態指示器 -->
-    <div id="sync-indicator" class="flex items-center gap-2 bg-white/90 px-3 py-1.5 rounded-full shadow-lg border hidden">
-        <div class="loading-spinner"></div>
-        <span class="text-xs font-bold text-emerald-700">同步中...</span>
+<body>
+    <div id="loading-overlay">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+        <p class="font-bold text-slate-500">雲端資料同步中...</p>
+        <div id="auth-error-hint" class="hidden max-w-xs text-center px-4">
+            <div class="error-msg">
+                偵測到 Firebase 設定錯誤。<br>
+                請確保已在 Firebase 控制台啟用「匿名登入 (Anonymous)」。
+            </div>
+        </div>
     </div>
 
-    <div class="max-w-md mx-auto min-h-screen flex flex-col bg-white shadow-xl relative">
-        
-        <!-- Header -->
-        <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b px-6 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-black tracking-tight text-slate-800">MAHJONG MASTER</h1>
-            <div id="connection-status" class="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
-        </header>
+    <div class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-slate-50 relative overflow-hidden">
+        <!-- 導覽列 -->
+        <nav class="sticky top-0 z-40 bg-white/95 backdrop-blur shadow-sm flex border-b">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex-1 py-4 font-black text-center tab-active">總覽</button>
+            <button onclick="switchTab('tracker')" id="tab-tracker" class="flex-1 py-4 font-black text-center text-slate-400">計分</button>
+            <button onclick="switchTab('members')" id="tab-members" class="flex-1 py-4 font-black text-center text-slate-400">成員</button>
+        </nav>
 
-        <!-- Main Content -->
-        <main class="flex-grow p-5 pb-24 overflow-x-hidden">
-            
-            <!-- 1. 數據總覽 (Dashboard) -->
-            <section id="page-dashboard" class="page-content space-y-5">
-                <div class="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[2.5rem] p-7 text-white shadow-2xl shadow-emerald-100">
-                    <div class="flex justify-between items-start mb-6">
-                        <div>
-                            <p class="text-xs font-bold opacity-80 mb-1 uppercase tracking-widest">總收益概覽</p>
-                            <h2 id="dashNet" class="text-5xl font-black tracking-tighter">$ 0</h2>
-                        </div>
-                        <select id="dashYearSelect" onchange="updateDashboard()" class="bg-white/20 border-none rounded-xl px-3 py-1.5 text-xs font-black backdrop-blur-md">
+        <main class="p-4 flex-grow overflow-x-hidden">
+            <!-- 總覽頁面 -->
+            <section id="page-dashboard" class="space-y-4">
+                <div class="glass-card rounded-3xl p-6 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-black text-slate-800">數據統計</h3>
+                        <select id="dashYearSelect" onchange="renderDashboard()" class="bg-slate-100 border-none rounded-lg px-2 py-1 text-sm font-bold">
+                            <option value="2025">2025</option>
                             <option value="2026">2026</option>
                         </select>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-white/10 rounded-2xl p-4">
-                            <p class="text-[10px] font-bold opacity-70 mb-1">總贏場金額</p>
-                            <p id="dashWin" class="text-xl font-black text-emerald-100">$ 0</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div id="netProfitBox" class="col-span-2 rounded-2xl p-5 text-center text-white transition-colors bg-emerald-600 shadow-lg">
+                            <p class="text-[10px] opacity-70 font-bold uppercase tracking-wider">淨勝負</p>
+                            <h2 id="dashNet" class="text-4xl font-black mt-1">$ 0</h2>
                         </div>
-                        <div class="bg-white/10 rounded-2xl p-4">
-                            <p class="text-[10px] font-bold opacity-70 mb-1">總輸場金額</p>
-                            <p id="dashLoss" class="text-xl font-black text-red-200">$ 0</p>
+                        <div class="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 text-center">
+                            <p class="text-[10px] text-emerald-600 font-bold">單場最高贏</p>
+                            <p id="dashWin" class="text-xl font-black text-emerald-700">$ 0</p>
+                        </div>
+                        <div class="bg-red-50 rounded-2xl p-3 border border-red-100 text-center">
+                            <p class="text-[10px] text-red-600 font-bold">單場最高輸</p>
+                            <p id="dashLoss" class="text-xl font-black text-red-700">$ 0</p>
                         </div>
                     </div>
                 </div>
-
-                <!-- 日曆組件 -->
-                <div class="bg-white rounded-[2rem] p-6 border shadow-sm">
+                <div class="bg-white rounded-3xl p-6 shadow-sm">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 id="calTitle" class="font-black text-slate-800">2026年 1月</h3>
-                        <div class="flex gap-1">
-                            <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-100 rounded-full font-bold">❮</button>
-                            <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-100 rounded-full font-bold">❯</button>
+                        <h3 id="calTitle" class="font-black text-slate-800">2025年 1月</h3>
+                        <div class="flex gap-2">
+                            <button onclick="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full">◀</button>
+                            <button onclick="changeMonth(1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full">▶</button>
                         </div>
                     </div>
-                    <div id="calendarGrid" class="grid grid-cols-7 gap-2 text-center text-[10px] font-bold text-slate-400 mb-2">
-                        <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
-                    </div>
-                    <div id="calendarDays" class="grid grid-cols-7 gap-2"></div>
-                </div>
-
-                <!-- 最近紀錄 -->
-                <div class="space-y-3">
-                    <h3 class="font-black text-slate-800 px-1">最近紀錄</h3>
-                    <div id="recentMatchesList" class="space-y-3"></div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
                 </div>
             </section>
 
-            <!-- 2. 計分工具 (Tracker) -->
-            <section id="page-tracker" class="page-content hidden">
-                <!-- 設定畫面 -->
-                <div id="setupView" class="space-y-6">
-                    <div class="bg-white rounded-[2.5rem] p-8 border shadow-sm space-y-8">
-                        <h2 class="text-3xl font-black text-slate-800">開局設定</h2>
-                        
-                        <div class="space-y-5">
-                            <div>
-                                <label class="text-xs font-black text-slate-400 mb-2 block ml-1">選擇牌咖 (選三位)</label>
-                                <div id="setupMemberList" class="flex gap-4 overflow-x-auto pb-4 no-scrollbar"></div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                                    <label class="text-[10px] font-black text-slate-400 block mb-1">底 (Base)</label>
-                                    <input type="number" id="betBase" placeholder="100" class="bg-transparent w-full text-xl font-black focus:outline-none">
-                                </div>
-                                <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                                    <label class="text-[10px] font-black text-slate-400 block mb-1">台 (Rate)</label>
-                                    <input type="number" id="betRate" placeholder="20" class="bg-transparent w-full text-xl font-black focus:outline-none">
-                                </div>
-                            </div>
-
-                            <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                                <label class="text-[10px] font-black text-slate-400 block mb-1">比賽日期</label>
-                                <input type="date" id="setupDate" class="bg-transparent w-full font-bold focus:outline-none">
-                            </div>
+            <!-- 計分頁面 -->
+            <section id="page-tracker" class="hidden">
+                <div id="setupView" class="space-y-4">
+                    <div class="bg-white rounded-3xl p-6 shadow-sm space-y-6">
+                        <h2 class="text-2xl font-black text-slate-800">建立新牌局</h2>
+                        <input type="date" id="setupDate" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                        <p class="text-xs font-bold text-slate-400">請選取 3 位牌咖對手：</p>
+                        <div id="setupMemberList" class="flex gap-3 overflow-x-auto pb-2 scroll-hide min-h-[80px]"></div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="setBet(30,10,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">30/10</button>
+                            <button onclick="setBet(50,20,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">50/20</button>
+                            <button onclick="setBet(100,20,this)" class="bet-btn py-3 bg-slate-100 rounded-xl text-xs font-black">100/20</button>
                         </div>
-
-                        <button onclick="startMatch()" class="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl active:scale-95 transition-transform">
-                            開始紀錄牌局
-                        </button>
+                        <button onclick="startMatch()" class="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black shadow-xl">開始計分</button>
                     </div>
                 </div>
-
-                <!-- 記錄畫面 -->
-                <div id="recordView" class="hidden space-y-5">
-                    <div class="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
-                        <div class="relative z-10">
-                            <p class="text-xs font-bold opacity-50 mb-1">目前本人總勝負</p>
-                            <h2 id="liveNet" class="text-6xl font-black tracking-tighter">$ 0</h2>
-                        </div>
-                        <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl"></div>
+                <div id="recordView" class="hidden space-y-4">
+                    <div class="bg-slate-900 text-white rounded-[32px] p-8">
+                        <h2 id="liveNet" class="text-6xl font-black tracking-tighter">$ 0</h2>
+                        <p class="mt-2 opacity-50 font-bold">當前局勢累積總計</p>
                     </div>
-
-                    <div class="bg-white rounded-[2.5rem] p-6 border shadow-sm space-y-6">
-                        <div class="flex bg-slate-100 p-1.5 rounded-2xl">
-                            <button onclick="setRecType('win')" id="btn-win" class="flex-1 py-3 rounded-xl font-black text-sm transition-all bg-white shadow-sm text-emerald-600">胡/摸 (+)</button>
-                            <button onclick="setRecType('loss')" id="btn-loss" class="flex-1 py-3 rounded-xl font-black text-sm transition-all text-slate-400">槍/摸 (-)</button>
-                        </div>
-
-                        <div id="targetPicker" class="flex gap-3 overflow-x-auto py-1"></div>
-
-                        <div class="flex gap-3">
-                            <div class="flex-1 bg-slate-50 p-4 rounded-2xl border flex items-center">
-                                <span class="font-black text-slate-400 mr-2">$</span>
-                                <input type="number" id="recVal" placeholder="金額" class="bg-transparent w-full font-black text-xl focus:outline-none">
-                            </div>
-                            <button onclick="addLog()" class="bg-slate-900 text-white px-8 rounded-2xl font-black">加入</button>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-[2.5rem] p-6 border shadow-sm">
-                        <h3 class="font-black text-slate-800 mb-4 flex justify-between items-center">
-                            <span>即時紀錄流</span>
-                            <span id="logCount" class="text-xs bg-slate-100 px-2 py-1 rounded-md text-slate-500">0 筆</span>
-                        </h3>
-                        <div id="logList" class="space-y-3 max-h-60 overflow-y-auto pr-2"></div>
-                        <div class="mt-6 pt-6 border-t flex gap-3">
-                            <button onclick="cancelMatch()" class="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm">取消</button>
-                            <button onclick="confirmSettle()" class="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-100">結算此局</button>
-                        </div>
+                    <div class="bg-white rounded-[32px] p-6 space-y-4">
+                        <select id="recType" class="w-full p-4 bg-slate-100 rounded-2xl font-black">
+                            <option value="胡牌">我胡牌 (+)</option>
+                            <option value="放槍">我放槍 (-)</option>
+                        </select>
+                        <input type="number" id="recVal" placeholder="輸入金額" class="w-full p-4 bg-slate-100 rounded-2xl font-black outline-none">
+                        <p class="text-xs font-bold text-slate-400">選擇計算對象：</p>
+                        <div id="recTargetList" class="flex gap-2 overflow-x-auto py-2 scroll-hide"></div>
+                        <button onclick="addLog()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">新增此紀錄</button>
+                        <button onclick="settleMatch()" class="w-full bg-orange-500 text-white py-4 rounded-2xl font-black mt-2">牌局結束並存檔</button>
                     </div>
                 </div>
             </section>
 
-            <!-- 3. 成員管理 (Members) -->
-            <section id="page-members" class="page-content hidden space-y-6">
-                <div class="bg-white rounded-[2.5rem] p-8 border shadow-sm">
-                    <h2 class="text-2xl font-black text-slate-800 mb-6">新增成員</h2>
-                    <div class="flex gap-3">
-                        <input type="text" id="memName" placeholder="成員稱呼" class="flex-1 p-5 bg-slate-50 rounded-2xl border-none font-bold focus:ring-2 ring-emerald-500">
-                        <button onclick="addMember()" class="bg-emerald-600 text-white py-5 px-8 rounded-2xl font-black shadow-lg">新增</button>
+            <!-- 成員頁面 -->
+            <section id="page-members" class="hidden space-y-6">
+                <div class="bg-white rounded-3xl p-6 shadow-sm">
+                    <h2 class="text-xl font-black text-slate-800 mb-4">新增成員</h2>
+                    <div class="flex gap-2">
+                        <input type="text" id="memName" placeholder="輸入名字" class="flex-1 p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none">
+                        <button onclick="addMember()" class="bg-emerald-600 text-white px-8 rounded-2xl font-black">新增</button>
                     </div>
                 </div>
-
-                <div class="space-y-4">
-                    <h3 class="font-black text-slate-800 px-1">成員數據總覽</h3>
-                    <div id="memberListDisplay" class="space-y-4"></div>
-                </div>
+                <div id="memberListDisplay" class="space-y-3"></div>
             </section>
         </main>
-
-        <!-- Bottom Navigation -->
-        <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-xl border-t flex safe-bottom z-50">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex-1 py-4 flex flex-col items-center gap-1 font-bold text-xs text-slate-400 transition-all">
-                <span class="text-xl">📊</span> 數據
-            </button>
-            <button onclick="switchTab('tracker')" id="tab-tracker" class="flex-1 py-4 flex flex-col items-center gap-1 font-bold text-xs text-slate-400 transition-all">
-                <span class="text-xl">🀄</span> 計分
-            </button>
-            <button onclick="switchTab('members')" id="tab-members" class="flex-1 py-4 flex flex-col items-center gap-1 font-bold text-xs text-slate-400 transition-all">
-                <span class="text-xl">👥</span> 成員
-            </button>
-        </nav>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- Firebase 邏輯 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    <script>
-        // --- 設定與狀態 ---
-        const appId = "mahjong-master-v10-final";
+        // 更新後的 Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyAX-Lsh3RdVZWf6oV5TAH-OS4BD__h4DuQ",
             authDomain: "mahjong-scoring-calculat-3c0ca.firebaseapp.com",
             projectId: "mahjong-scoring-calculat-3c0ca",
             storageBucket: "mahjong-scoring-calculat-3c0ca.firebasestorage.app",
             messagingSenderId: "386600276534",
-            appId: "1:386600276534:web:2eefd6ee6eba7ae9927e97"
+            appId: "1:386600276534:web:2eefd6ee6eba7ae9927e97",
+            measurementId: "G-HNKLDG0P3L"
         };
 
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
         let DB = { members: [], matches: [] };
         let user = null;
-        let activeMatch = null;
-        let currentTab = 'dashboard';
+        const appId = "mahjong-app-v3";
         let viewDate = new Date();
-        
-        // 暫存狀態
-        let setupSelectedIds = [];
-        let recordType = 'win'; // 'win' or 'loss'
-        let recordTargetId = null;
+        let setupSelectedMembers = [];
+        let activeMatch = null;
+        let selectedRecMember = null;
 
-        // --- 同步邏輯 (關鍵修復) ---
-
-        function showSync(show) {
-            const el = document.getElementById('sync-indicator');
-            if (show) el.classList.remove('hidden');
-            else setTimeout(() => el.classList.add('hidden'), 500);
-        }
-
-        async function saveToCloud() {
-            if (!user) return;
-            showSync(true);
-            try {
-                await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).set({
-                    mahjongDB: DB,
-                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } catch (e) {
-                console.error("同步失敗", e);
-            } finally {
-                showSync(false);
+        // 初始化
+        signInAnonymously(auth).catch((error) => {
+            console.error("Auth Error:", error.code);
+            if (error.code === 'auth/configuration-not-found') {
+                document.getElementById('auth-error-hint').classList.remove('hidden');
             }
-        }
-
-        // 初始化與監聽
-        auth.signInAnonymously().then(cred => {
-            user = cred.user;
-            document.getElementById('connection-status').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]";
-            
-            // 重要：這裡啟動全時監聽
-            db.collection('artifacts').doc(appId).collection('users').doc(user.uid)
-            .onSnapshot(doc => {
-                if (doc.exists && doc.data().mahjongDB) {
-                    DB = doc.data().mahjongDB;
-                    console.log("雲端資料已更新，正在同步畫面...");
-                    renderCurrentPage();
-                }
-            });
         });
 
-        // --- 分頁與導航 ---
-        window.switchTab = function(tab) {
-            currentTab = tab;
-            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+        onAuthStateChanged(auth, (u) => {
+            if (u) {
+                user = u;
+                onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), (snap) => {
+                    if (snap.exists()) {
+                        DB = snap.data();
+                    } else {
+                        saveCloud(); // 初始化
+                    }
+                    renderUI();
+                    document.getElementById('loading-overlay').style.opacity = '0';
+                    setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 500);
+                });
+            }
+        });
+
+        async function saveCloud() {
+            if (!user) return;
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'mahjongDB'), DB);
+        }
+
+        // --- 控制函式 ---
+        window.switchTab = (tab) => {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`page-${tab}`).classList.remove('hidden');
-            
-            document.querySelectorAll('nav button').forEach(b => {
-                b.classList.remove('tab-active', 'text-slate-900');
-                b.classList.add('text-slate-400');
-                if (b.id === `tab-${tab}`) {
-                    b.classList.add('tab-active', 'text-slate-900');
-                }
-            });
-            renderCurrentPage();
+            document.querySelectorAll('nav button').forEach(b => b.classList.replace('tab-active', 'text-slate-400'));
+            document.getElementById(`tab-${tab}`).classList.add('tab-active');
+            renderUI();
         };
 
-        function renderCurrentPage() {
-            if (currentTab === 'dashboard') updateDashboard();
-            if (currentTab === 'tracker') {
-                if (!activeMatch) renderSetup();
-                else updateRecordUI();
-            }
-            if (currentTab === 'members') renderMemberList();
-        }
-
-        // --- 總覽功能 ---
-        function updateDashboard() {
-            const select = document.getElementById('dashYearSelect');
-            const years = [...new Set(DB.matches.map(m => m.date.split('-')[0]))];
-            if (years.length === 0) years.push(new Date().getFullYear().toString());
-            select.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
-
-            const targetYear = select.value;
-            const yearMatches = DB.matches.filter(m => m.date.startsWith(targetYear));
-            
-            let win = 0, loss = 0;
-            yearMatches.forEach(m => {
-                if (m.total > 0) win += m.total;
-                else loss += Math.abs(m.total);
-            });
-
-            document.getElementById('dashNet').innerText = `$ ${(win - loss).toLocaleString()}`;
-            document.getElementById('dashWin').innerText = `$ ${win.toLocaleString()}`;
-            document.getElementById('dashLoss').innerText = `$ ${loss.toLocaleString()}`;
-
-            renderCalendar();
-            renderRecentMatches();
-        }
-
-        function renderCalendar() {
-            const container = document.getElementById('calendarDays');
-            const y = viewDate.getFullYear(), m = viewDate.getMonth();
-            document.getElementById('calTitle').innerText = `${y}年 ${m + 1}月`;
-            container.innerHTML = '';
-
-            const firstDay = new Date(y, m, 1).getDay();
-            const lastDate = new Date(y, m + 1, 0).getDate();
-
-            for (let i = 0; i < firstDay; i++) container.appendChild(document.createElement('div'));
-
-            for (let d = 1; d <= lastDate; d++) {
-                const ds = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const dailyMatches = DB.matches.filter(mt => mt.date === ds);
-                const dailyNet = dailyMatches.reduce((acc, mt) => acc + mt.total, 0);
-
-                const el = document.createElement('div');
-                el.className = `h-10 flex flex-col items-center justify-center rounded-xl text-xs font-black transition-all cursor-pointer`;
-                
-                if (dailyMatches.length > 0) {
-                    el.className += dailyNet >= 0 ? ' bg-emerald-500 text-white' : ' bg-red-500 text-white';
-                } else {
-                    el.className += ' bg-slate-50 text-slate-400 hover:bg-slate-100';
-                }
-                el.innerText = d;
-                container.appendChild(el);
-            }
-        }
-
-        window.changeMonth = (s) => { viewDate.setMonth(viewDate.getMonth() + s); renderCalendar(); };
-
-        function renderRecentMatches() {
-            const list = document.getElementById('recentMatchesList');
-            const recent = DB.matches.slice(0, 5);
-            if (recent.length === 0) {
-                list.innerHTML = `<div class="text-center py-10 text-slate-300 font-bold">尚無紀錄</div>`;
-                return;
-            }
-            list.innerHTML = recent.map(m => `
-                <div class="bg-white p-5 rounded-3xl border flex justify-between items-center shadow-sm">
-                    <div>
-                        <p class="text-xs font-bold text-slate-400">${m.date}</p>
-                        <p class="font-black text-slate-700">牌局結算</p>
-                    </div>
-                    <p class="text-xl font-black ${m.total >= 0 ? 'text-emerald-600' : 'text-red-600'}">
-                        ${m.total >= 0 ? '+' : ''}${m.total.toLocaleString()}
-                    </p>
-                </div>
-            `).join('');
-        }
-
-        // --- 計分工具功能 ---
-        function renderSetup() {
-            const list = document.getElementById('setupMemberList');
-            list.innerHTML = DB.members.map(m => `
-                <div onclick="toggleSetupId('${m.id}')" class="member-chip flex-shrink-0 cursor-pointer ${setupSelectedIds.includes(m.id) ? 'active' : ''}">
-                    <div class="w-16 h-16 bg-white border-2 rounded-[1.5rem] flex items-center justify-center font-black text-lg mb-1">
-                        ${m.name.substring(0,2)}
-                    </div>
-                    <p class="text-[10px] font-bold text-center text-slate-500">${m.name}</p>
-                </div>
-            `).join('');
-            document.getElementById('setupDate').valueAsDate = new Date();
-        }
-
-        window.toggleSetupId = function(id) {
-            if (setupSelectedIds.includes(id)) setupSelectedIds = setupSelectedIds.filter(i => i !== id);
-            else if (setupSelectedIds.length < 3) setupSelectedIds.push(id);
-            renderSetup();
+        window.addMember = async () => {
+            const name = document.getElementById('memName').value.trim();
+            if (!name) return;
+            DB.members.push({ id: 'mem_'+Date.now(), name, emoji: '🀄', records: [] });
+            await saveCloud();
+            document.getElementById('memName').value = '';
+            renderMemberList();
         };
 
-        window.startMatch = function() {
-            if (setupSelectedIds.length !== 3) return alert("請先選擇三位牌咖");
-            const date = document.getElementById('setupDate').value;
-            const base = parseInt(document.getElementById('betBase').value) || 0;
-            const rate = parseInt(document.getElementById('betRate').value) || 0;
+        window.setBet = (base, rate, btn) => {
+            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('bet-active'));
+            btn.classList.add('bet-active');
+        };
 
+        window.startMatch = () => {
+            if (setupSelectedMembers.length !== 3) return alert('請先點選下方頭像，選擇三位對手！');
             activeMatch = {
-                date, base, rate,
-                players: DB.members.filter(m => setupSelectedIds.includes(m.id)),
-                logs: [],
-                scores: {}, // 紀錄每個人這局的淨勝負
-                total: 0 // 本人的總勝負
+                id: 'm_'+Date.now(),
+                date: document.getElementById('setupDate').value,
+                overallTotal: 0,
+                memberScores: {},
+                members: DB.members.filter(m => setupSelectedMembers.includes(m.id))
             };
-            activeMatch.players.forEach(p => activeMatch.scores[p.id] = 0);
-
+            activeMatch.members.forEach(m => activeMatch.memberScores[m.name] = 0);
             document.getElementById('setupView').classList.add('hidden');
             document.getElementById('recordView').classList.remove('hidden');
             updateRecordUI();
         };
 
-        window.setRecType = function(type) {
-            recordType = type;
-            const isWin = type === 'win';
-            document.getElementById('btn-win').className = isWin ? 'flex-1 py-3 rounded-xl font-black text-sm transition-all bg-white shadow-sm text-emerald-600' : 'flex-1 py-3 rounded-xl font-black text-sm transition-all text-slate-400';
-            document.getElementById('btn-loss').className = !isWin ? 'flex-1 py-3 rounded-xl font-black text-sm transition-all bg-white shadow-sm text-red-600' : 'flex-1 py-3 rounded-xl font-black text-sm transition-all text-slate-400';
-        };
-
-        function updateRecordUI() {
-            document.getElementById('liveNet').innerText = `$ ${activeMatch.total.toLocaleString()}`;
-            document.getElementById('logCount').innerText = `${activeMatch.logs.length} 筆`;
-            
-            // 目標選擇器 (包含本人)
-            const targetPicker = document.getElementById('targetPicker');
-            const players = [...activeMatch.players, { id: 'self', name: '自摸/被摸' }];
-            targetPicker.innerHTML = players.map(p => `
-                <button onclick="recordTargetId='${p.id}';updateRecordUI()" class="flex-shrink-0 px-5 py-2.5 rounded-xl font-black text-sm border-2 transition-all ${recordTargetId === p.id ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white text-slate-400'}">
-                    ${p.name}
-                </button>
-            `).join('');
-
-            // 紀錄清單
-            const logList = document.getElementById('logList');
-            logList.innerHTML = activeMatch.logs.slice().reverse().map((l, idx) => `
-                <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div>
-                        <p class="text-xs font-bold text-slate-400">${l.type}</p>
-                        <p class="font-black text-slate-700">${l.targetName}</p>
-                    </div>
-                    <p class="font-black ${l.score >= 0 ? 'text-emerald-600' : 'text-red-600'}">${l.score >= 0 ? '+' : ''}${l.score}</p>
-                </div>
-            `).join('');
-        }
-
-        window.addLog = function() {
+        window.addLog = () => {
             const val = parseInt(document.getElementById('recVal').value) || 0;
-            if (val === 0) return;
-            if (!recordTargetId) return alert("請選擇對象");
-
-            let logEntry = { type: '', targetName: '', score: 0 };
-            const isWin = recordType === 'win';
-
-            if (recordTargetId === 'self') {
-                // 自摸或被自摸
-                if (isWin) {
-                    logEntry.type = "自摸 (本人)";
-                    logEntry.targetName = "三家支付";
-                    logEntry.score = val * 3;
-                    activeMatch.total += (val * 3);
-                    activeMatch.players.forEach(p => activeMatch.scores[p.id] -= val);
-                } else {
-                    logEntry.type = "被摸 (本人)";
-                    logEntry.targetName = "支付一家";
-                    logEntry.score = -val;
-                    activeMatch.total -= val;
-                    activeMatch.players.forEach(p => activeMatch.scores[p.id] += (val/3)); // 這裡邏輯視規則調整
-                }
+            const type = document.getElementById('recType').value;
+            if (!selectedRecMember) return alert('請先點擊選取下方其中一位成員！');
+            
+            const m = activeMatch.members.find(x => x.id === selectedRecMember);
+            if (type === '胡牌') {
+                activeMatch.overallTotal += val;
+                activeMatch.memberScores[m.name] -= val;
             } else {
-                // 跟特定某人 胡/槍
-                const target = activeMatch.players.find(p => p.id === recordTargetId);
-                logEntry.targetName = target.name;
-                if (isWin) {
-                    logEntry.type = "胡牌 (本人)";
-                    logEntry.score = val;
-                    activeMatch.total += val;
-                    activeMatch.scores[target.id] -= val;
-                } else {
-                    logEntry.type = "放槍 (本人)";
-                    logEntry.score = -val;
-                    activeMatch.total -= val;
-                    activeMatch.scores[target.id] += val;
-                }
+                activeMatch.overallTotal -= val;
+                activeMatch.memberScores[m.name] += val;
             }
-
-            activeMatch.logs.push(logEntry);
             document.getElementById('recVal').value = '';
             updateRecordUI();
         };
 
-        window.confirmSettle = async function() {
-            if (!confirm("確定要結算並存檔嗎？這將會更新所有成員數據。")) return;
-            
-            // 1. 存入牌局總表
-            DB.matches.unshift({
-                id: Date.now(),
-                date: activeMatch.date,
-                total: activeMatch.total,
-                details: activeMatch.logs
+        window.settleMatch = async () => {
+            DB.matches.unshift({ 
+                date: activeMatch.date, 
+                total: activeMatch.overallTotal, 
+                memberScores: activeMatch.memberScores 
             });
-
-            // 2. 更新參與成員的個人紀錄
-            activeMatch.players.forEach(p => {
-                const dbM = DB.members.find(m => m.id === p.id);
-                if (dbM) {
-                    if (!dbM.records) dbM.records = [];
-                    dbM.records.push({
-                        date: activeMatch.date,
-                        score: activeMatch.scores[p.id]
-                    });
-                }
+            activeMatch.members.forEach(mem => {
+                const dbMem = DB.members.find(x => x.id === mem.id);
+                if (dbMem) dbMem.records.unshift({ date: activeMatch.date, score: activeMatch.memberScores[mem.name] });
             });
-
             activeMatch = null;
-            await saveToCloud();
-            
+            setupSelectedMembers = [];
+            await saveCloud();
             document.getElementById('recordView').classList.add('hidden');
             document.getElementById('setupView').classList.remove('hidden');
             switchTab('dashboard');
         };
 
-        window.cancelMatch = function() {
-            if (confirm("要取消目前紀錄嗎？資料將不會被儲存。")) {
-                activeMatch = null;
-                document.getElementById('recordView').classList.add('hidden');
-                document.getElementById('setupView').classList.remove('hidden');
-            }
-        };
-
-        // --- 成員管理功能 ---
-        window.addMember = async function() {
-            const name = document.getElementById('memName').value.trim();
-            if (!name) return;
-            
-            DB.members.push({
-                id: 'm_' + Date.now(),
-                name: name,
-                records: [],
-                createdAt: new Date().toISOString()
-            });
-
-            document.getElementById('memName').value = '';
-            await saveToCloud();
+        // --- UI 渲染 ---
+        function renderUI() {
             renderMemberList();
-        };
+            renderDashboard();
+            renderSetupMembers();
+            if (!document.getElementById('setupDate').value) {
+                document.getElementById('setupDate').valueAsDate = new Date();
+            }
+        }
 
         function renderMemberList() {
             const display = document.getElementById('memberListDisplay');
-            if (DB.members.length === 0) {
-                display.innerHTML = `<div class="text-center py-20 text-slate-300 font-bold">目前沒有成員</div>`;
+            if (!DB.members.length) {
+                display.innerHTML = '<p class="text-center text-slate-400 py-10 font-bold">請到「成員」頁面新增牌咖</p>';
                 return;
             }
+            const sorted = [...DB.members].sort((a,b) => {
+                const sA = a.records.reduce((acc, r) => acc + r.score, 0);
+                const sB = b.records.reduce((acc, r) => acc + r.score, 0);
+                return sA - sB;
+            });
 
-            display.innerHTML = DB.members.map(m => {
-                const total = (m.records || []).reduce((acc, r) => acc + r.score, 0);
-                const winRate = m.records ? Math.round((m.records.filter(r => r.score > 0).length / m.records.length) * 100) || 0 : 0;
-                
+            display.innerHTML = sorted.map((m, i) => {
+                const total = m.records.reduce((acc, r) => acc + r.score, 0);
+                let color = "bg-white";
+                if (i === 0 && total < 0) color = "bg-emerald-500 text-white shadow-emerald-200";
+                if (i === sorted.length - 1 && total > 0) color = "bg-red-500 text-white shadow-red-200";
                 return `
-                <div class="bg-white p-6 rounded-[2rem] border shadow-sm flex justify-between items-center group active:scale-[0.98] transition-all">
-                    <div class="flex items-center gap-4">
-                        <div class="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center font-black text-slate-500">
-                            ${m.name.substring(0,2)}
-                        </div>
-                        <div>
-                            <p class="font-black text-slate-800">${m.name}</p>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">勝率 ${winRate}%</p>
+                    <div class="p-5 rounded-[28px] flex justify-between items-center ${color} shadow-sm border border-slate-100">
+                        <span class="font-black">${m.emoji} ${m.name}</span>
+                        <div class="text-right">
+                            <span class="text-[10px] block opacity-50">累計收益</span>
+                            <span class="font-black text-xl">${total >= 0 ? '+' : ''}${total}</span>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-lg font-black ${total >= 0 ? 'text-emerald-600' : 'text-red-600'}">
-                            ${total >= 0 ? '+' : ''}${total.toLocaleString()}
-                        </p>
-                        <p class="text-[10px] font-bold text-slate-300">總計勝負</p>
-                    </div>
-                </div>
                 `;
             }).join('');
         }
 
-        // --- 初始化 ---
-        window.onload = () => {
-            switchTab('dashboard');
+        window.renderDashboard = () => {
+            const net = DB.matches.reduce((acc, m) => acc + m.total, 0);
+            document.getElementById('dashNet').innerText = `$ ${net}`;
+            document.getElementById('netProfitBox').className = `col-span-2 rounded-2xl p-5 text-center text-white shadow-lg transition-colors ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`;
+            
+            const maxWin = DB.matches.length ? Math.max(...DB.matches.map(m => m.total)) : 0;
+            const maxLoss = DB.matches.length ? Math.min(...DB.matches.map(m => m.total)) : 0;
+            document.getElementById('dashWin').innerText = `$ ${maxWin > 0 ? maxWin : 0}`;
+            document.getElementById('dashLoss').innerText = `$ ${maxLoss < 0 ? Math.abs(maxLoss) : 0}`;
+
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            document.getElementById('calTitle').innerText = `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`;
+            
+            const lastDay = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+            for (let d = 1; d <= lastDay; d++) {
+                const dayStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const match = DB.matches.find(m => m.date === dayStr);
+                const dayEl = document.createElement('div');
+                dayEl.className = `calendar-day ${match ? (match.total >= 0 ? 'day-win' : 'day-loss') : 'bg-white text-slate-300'} font-bold`;
+                dayEl.innerText = d;
+                grid.appendChild(dayEl);
+            }
+        }
+
+        function renderSetupMembers() {
+            const list = document.getElementById('setupMemberList');
+            list.innerHTML = DB.members.map(m => `
+                <div onclick="toggleSetup('${m.id}')" class="flex-shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${setupSelectedMembers.includes(m.id) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-transparent bg-slate-100 text-slate-400'}">
+                    <span class="text-2xl mb-1">${m.emoji}</span>
+                    ${m.name}
+                </div>
+            `).join('');
+        }
+
+        window.toggleSetup = (id) => {
+            if (setupSelectedMembers.includes(id)) setupSelectedMembers = setupSelectedMembers.filter(x => x !== id);
+            else if (setupSelectedMembers.length < 3) setupSelectedMembers.push(id);
+            renderSetupMembers();
+        };
+
+        function updateRecordUI() {
+            document.getElementById('liveNet').innerText = `$ ${activeMatch.overallTotal}`;
+            document.getElementById('recTargetList').innerHTML = activeMatch.members.map(m => `
+                <button onclick="window.setRecMember('${m.id}')" class="px-6 py-3 rounded-2xl text-sm font-black whitespace-nowrap transition-all ${selectedRecMember === m.id ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}">
+                    ${m.name}
+                </button>
+            `).join('');
+        }
+
+        window.setRecMember = (id) => {
+            selectedRecMember = id;
+            updateRecordUI();
+        };
+
+        window.changeMonth = (s) => { 
+            viewDate.setMonth(viewDate.getMonth() + s); 
+            renderDashboard(); 
         };
     </script>
 </body>
